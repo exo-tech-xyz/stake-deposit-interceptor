@@ -11,4 +11,10 @@ pub enum StakeDepositInterceptorError {
     /// 2 : Account already in use
     #[error("Account already in use")]
     AlreadyInUse,
+    /// 3 : Invalid StakePool
+    #[error("StakePool does not match other inputs")]
+    InvalidStakePool,
+    /// 4 : Invalid StakePool Manager
+    #[error("StakePool manager is invalid")]
+    InvalidStakePoolManager,
 }

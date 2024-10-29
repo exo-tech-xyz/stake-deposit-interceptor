@@ -19,12 +19,12 @@ pub fn program_test_with_stake_pool_program() -> ProgramTest {
     program_test
 }
 
-pub async fn program_test_context_with_stake_pool_state() -> ProgramTestContext {
+pub async fn program_test_context_with_stake_pool_state() -> (ProgramTestContext, Pubkey) {
     let mut ctx = program_test_with_stake_pool_program()
         .start_with_context()
         .await;
-    create_stake_pool(&mut ctx).await;
-    ctx
+    let stake_pool = create_stake_pool(&mut ctx).await;
+    (ctx, stake_pool)
 }
 
 /// Create a SPL Token mint account and return the Pubkey.
@@ -122,7 +122,7 @@ pub async fn create_stake_account(
     keypair.pubkey()
 }
 
-pub async fn create_stake_pool(ctx: &mut ProgramTestContext) {
+pub async fn create_stake_pool(ctx: &mut ProgramTestContext) -> Pubkey {
     let pool_mint = create_mint(ctx).await;
     let pool_fee_account = create_token_account(ctx, &pool_mint).await;
     let max_validators = 5;
@@ -208,4 +208,6 @@ pub async fn create_stake_pool(ctx: &mut ProgramTestContext) {
     );
 
     ctx.banks_client.process_transaction(tx).await.unwrap();
+
+    stake_pool_keypair.pubkey()
 }

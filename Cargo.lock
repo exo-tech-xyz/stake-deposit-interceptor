@@ -4932,6 +4932,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spl-pod"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00e38c99f09d58df06ca9a29fc0211786a4c34f4d099c1df27b1abaa206569a4"
+dependencies = [
+ "borsh 1.5.1",
+ "bytemuck",
+ "bytemuck_derive",
+ "solana-program 2.0.14",
+ "solana-zk-sdk",
+ "spl-program-error",
+]
+
+[[package]]
 name = "spl-program-error"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4974,7 +4988,7 @@ dependencies = [
  "solana-program 2.0.14",
  "solana-security-txt",
  "spl-math",
- "spl-pod",
+ "spl-pod 0.3.1",
  "spl-token-2022",
  "thiserror",
 ]
@@ -4988,7 +5002,7 @@ dependencies = [
  "bytemuck",
  "solana-program 2.0.14",
  "spl-discriminator",
- "spl-pod",
+ "spl-pod 0.3.1",
  "spl-program-error",
  "spl-type-length-value",
 ]
@@ -5023,7 +5037,7 @@ dependencies = [
  "solana-security-txt",
  "solana-zk-token-sdk",
  "spl-memo",
- "spl-pod",
+ "spl-pod 0.3.1",
  "spl-token",
  "spl-token-group-interface",
  "spl-token-metadata-interface",
@@ -5041,7 +5055,7 @@ dependencies = [
  "bytemuck",
  "solana-program 2.0.14",
  "spl-discriminator",
- "spl-pod",
+ "spl-pod 0.3.1",
  "spl-program-error",
 ]
 
@@ -5054,7 +5068,7 @@ dependencies = [
  "borsh 1.5.1",
  "solana-program 2.0.14",
  "spl-discriminator",
- "spl-pod",
+ "spl-pod 0.3.1",
  "spl-program-error",
  "spl-type-length-value",
 ]
@@ -5069,7 +5083,7 @@ dependencies = [
  "bytemuck",
  "solana-program 2.0.14",
  "spl-discriminator",
- "spl-pod",
+ "spl-pod 0.3.1",
  "spl-program-error",
  "spl-tlv-account-resolution",
  "spl-type-length-value",
@@ -5084,7 +5098,7 @@ dependencies = [
  "bytemuck",
  "solana-program 2.0.14",
  "spl-discriminator",
- "spl-pod",
+ "spl-pod 0.3.1",
  "spl-program-error",
 ]
 
@@ -5093,12 +5107,14 @@ name = "stake-deposit-interceptor"
 version = "0.1.0"
 dependencies = [
  "borsh 1.5.1",
+ "bytemuck",
  "getrandom 0.1.16",
  "num-derive 0.4.2",
  "num-traits",
  "solana-program 2.0.14",
  "solana-program-test",
  "solana-sdk",
+ "spl-pod 0.4.0",
  "spl-program-error",
  "spl-program-error-derive",
  "spl-stake-pool",
