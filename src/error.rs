@@ -23,4 +23,10 @@ pub enum StakeDepositInterceptorError {
     /// 6 : Invalid StakePoolDepositStakeAuthority
     #[error("StakePoolDepositStakeAuthority key is invalid")]
     InvalidStakePoolDepositStakeAuthority,
+    /// 7 : Invalid Vault account
+    #[error("Vault ATA is invalid")]
+    InvalidVault,
+    /// 8 : Invalid Token program account   
+    #[error("Token program is invalid")]
+    InvalidTokenProgram,
 }

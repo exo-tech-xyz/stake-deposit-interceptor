@@ -13,6 +13,7 @@ use solana_program::{
     system_instruction,
     sysvar::Sysvar,
 };
+use spl_associated_token_account::get_associated_token_address;
 use spl_pod::primitives::{PodU32, PodU64};
 
 use crate::{
@@ -38,10 +39,14 @@ impl Processor {
         let account_info_iter = &mut accounts.iter();
         let payer_info = next_account_info(account_info_iter)?;
         let deposit_stake_authority_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+        let vault_ata_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
         let authority = next_account_info(account_info_iter)?;
         let stake_pool_info = next_account_info(account_info_iter)?;
+        let stake_pool_mint_info = next_account_info(account_info_iter)?;
         let stake_pool_manager_info = next_account_info(account_info_iter)?;
         let stake_pool_program_info = next_account_info(account_info_iter)?;
+        let token_program_info = next_account_info(account_info_iter)?;
+        let _associated_token_account_program_info = next_account_info(account_info_iter)?;
         let system_program_info = next_account_info(account_info_iter)?;
 
         let rent = Rent::get()?;
@@ -65,6 +70,16 @@ impl Processor {
             return Err(StakeDepositInterceptorError::InvalidStakePoolManager.into());
         }
 
+        // Validate: stake_pool's mint is same as given account
+        if stake_pool.pool_mint != *stake_pool_mint_info.key {
+            return Err(StakeDepositInterceptorError::InvalidStakePool.into());
+        }
+
+        // Validate: stake_pool's mint has same token program as given program
+        if stake_pool_mint_info.owner != token_program_info.key {
+            return Err(StakeDepositInterceptorError::InvalidTokenProgram.into());
+        }
+
         let (deposit_stake_authority_pda, _bump_seed) =
             derive_stake_pool_deposit_stake_authority(program_id, stake_pool_info.key);
 
@@ -72,6 +87,11 @@ impl Processor {
             return Err(StakeDepositInterceptorError::InvalidSeeds.into());
         }
 
+        let pda_seeds = [
+            STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
+            &stake_pool_info.key.to_bytes(),
+            &[init_deposit_stake_authority_args.bump_seed],
+        ];
         // Create and initialize the StakePoolDepositStakeAuthority account
         create_pda_account(
             payer_info,
@@ -80,11 +100,34 @@ impl Processor {
             program_id,
             system_program_info,
             deposit_stake_authority_info,
+            &pda_seeds,
+        )?;
+
+        let vault_ata =
+            get_associated_token_address(&deposit_stake_authority_pda, &stake_pool.pool_mint);
+
+        // Validate: Vault must be the ATA for the StakePoolDepositStakeAuthority PDA
+        if vault_ata != *vault_ata_info.key {
+            return Err(StakeDepositInterceptorError::InvalidVault.into());
+        }
+
+        // Create and initialize the Vault ATA
+        invoke_signed(
+            &spl_associated_token_account::instruction::create_associated_token_account(
+                &payer_info.key,               // Funding account
+                &deposit_stake_authority_pda, // Owner of the ATA
+                &stake_pool.pool_mint,         // Mint address for the token
+                token_program_info.key,
+            ),
             &[
-                STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
-                &stake_pool_info.key.to_bytes(),
-                &[init_deposit_stake_authority_args.bump_seed],
+                payer_info.clone(),
+                vault_ata_info.clone(),
+                deposit_stake_authority_info.clone(),
+                stake_pool_mint_info.clone(),
+                system_program_info.clone(),
+                token_program_info.clone(),
             ],
+            &[&pda_seeds], // PDA's signature
         )?;
 
         let mut deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
@@ -106,6 +149,7 @@ impl Processor {
         // Set StakePoolDepositStakeAuthority values
         deposit_stake_authority.stake_pool = *stake_pool_info.key;
         deposit_stake_authority.pool_mint = stake_pool.pool_mint;
+        deposit_stake_authority.vault = vault_ata;
         deposit_stake_authority.stake_pool_program_id = *stake_pool_program_info.key;
         deposit_stake_authority.authority = *authority.key;
         deposit_stake_authority.fee_wallet = init_deposit_stake_authority_args.fee_wallet;

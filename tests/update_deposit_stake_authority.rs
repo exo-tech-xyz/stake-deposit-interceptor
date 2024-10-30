@@ -11,8 +11,24 @@ use stake_deposit_interceptor::{
 #[tokio::test]
 async fn test_update_deposit_stake_authority() {
     let (mut ctx, stake_pool_pubkey) = program_test_context_with_stake_pool_state().await;
+    let stake_pool_account = ctx
+        .banks_client
+        .get_account(stake_pool_pubkey)
+        .await
+        .unwrap()
+        .unwrap();
+    let stake_pool =
+        try_from_slice_unchecked::<spl_stake_pool::state::StakePool>(&stake_pool_account.data)
+            .unwrap();
+
     let authority = Keypair::new();
-    create_stake_deposit_authority(&mut ctx, &stake_pool_pubkey, &authority).await;
+    create_stake_deposit_authority(
+        &mut ctx,
+        &stake_pool_pubkey,
+        &stake_pool.pool_mint,
+        &authority,
+    )
+    .await;
 
     let fee_wallet = Keypair::new();
     let new_authority = Keypair::new();

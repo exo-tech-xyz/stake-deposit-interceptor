@@ -4,6 +4,7 @@ use solana_program::{
     pubkey::Pubkey,
     system_program,
 };
+use spl_associated_token_account::get_associated_token_address;
 
 /// Initialize arguments for StakePoolDepositStakeAuthority
 #[repr(C)]
@@ -32,10 +33,13 @@ pub enum StakeDepositInterceptorInstruction {
     ///
     ///   0. `[w,s]` Payer that will fund the StakePoolDepositStakeAuthority account.
     ///   1. `[w]` New StakePoolDepositStakeAuthority to create.
-    ///   2. `[s]` Authority
-    ///   3. `[]` StakePool
-    ///   4. `[]` StakePool Program ID
-    ///   5. `[]` System program
+    ///   2. `[w]` New ATA owned by the `StakePoolDepositStakeAuthority` to create.
+    ///   3. `[s]` Authority
+    ///   4. `[]` StakePool
+    ///   5. `[]` StakePool's Pool Mint
+    ///   6. `[]` StakePool Program ID
+    ///   7. `[]` Token program
+    ///   8. `[]` System program
     InitStakePoolDepositStakeAuthority(InitStakePoolDepositStakeAuthorityArgs),
     ///   Updates the StakePoolDepositStakeAuthority for the given StakePool.
     ///
@@ -63,8 +67,10 @@ pub fn create_init_deposit_stake_authority_instruction(
     program_id: &Pubkey,
     payer: &Pubkey,
     stake_pool: &Pubkey,
+    stake_pool_mint: &Pubkey,
     stake_pool_manager: &Pubkey,
     stake_pool_program_id: &Pubkey,
+    token_program_id: &Pubkey,
     fee_wallet: &Pubkey,
     cool_down_period: u64,
     initial_fee_rate: u32,
@@ -72,6 +78,7 @@ pub fn create_init_deposit_stake_authority_instruction(
 ) -> Instruction {
     let (deposit_stake_authority_pubkey, bump_seed) =
         derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
+    let vault_ata = get_associated_token_address(&deposit_stake_authority_pubkey, stake_pool_mint);
     let args = InitStakePoolDepositStakeAuthorityArgs {
         fee_wallet: *fee_wallet,
         initial_fee_rate,
@@ -81,10 +88,14 @@ pub fn create_init_deposit_stake_authority_instruction(
     let accounts = vec![
         AccountMeta::new(*payer, true),
         AccountMeta::new(deposit_stake_authority_pubkey, false),
+        AccountMeta::new(vault_ata, false),
         AccountMeta::new_readonly(*authority, true),
         AccountMeta::new_readonly(*stake_pool, false),
+        AccountMeta::new_readonly(*stake_pool_mint, false),
         AccountMeta::new_readonly(*stake_pool_manager, true),
         AccountMeta::new_readonly(*stake_pool_program_id, false),
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new_readonly(spl_associated_token_account::id(), false),
         AccountMeta::new_readonly(system_program::id(), false),
     ];
     Instruction {

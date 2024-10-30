@@ -6,6 +6,7 @@ use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 pub async fn create_stake_deposit_authority(
     ctx: &mut ProgramTestContext,
     stake_pool_pubkey: &Pubkey,
+    stake_pool_mint: &Pubkey,
     authority: &Keypair,
 ) {
     let fee_wallet = Keypair::new();
@@ -16,8 +17,10 @@ pub async fn create_stake_deposit_authority(
             &stake_deposit_interceptor::id(),
             &ctx.payer.pubkey(),
             &stake_pool_pubkey,
+            stake_pool_mint,
             &ctx.payer.pubkey(),
             &spl_stake_pool::id(),
+            &spl_token::id(),
             &fee_wallet.pubkey(),
             cool_down_period,
             initial_fee_rate,

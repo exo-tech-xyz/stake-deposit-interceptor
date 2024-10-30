@@ -13,6 +13,8 @@ pub struct StakePoolDepositStakeAuthority {
     pub pool_mint: Pubkey,
     /// Address with control over the below parameters
     pub authority: Pubkey,
+    /// TokenAccount that temporarily holds the LST minted from the StakePool
+    pub vault: Pubkey,
     /// Program ID for the stake_pool
     pub stake_pool_program_id: Pubkey,
     /// The duration after a `DepositStake` in which the depositor would owe fees.
