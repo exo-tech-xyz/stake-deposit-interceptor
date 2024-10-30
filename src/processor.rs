@@ -19,7 +19,8 @@ use crate::{
     error::StakeDepositInterceptorError,
     instruction::{
         derive_stake_pool_deposit_stake_authority, InitStakePoolDepositStakeAuthorityArgs,
-        StakeDepositInterceptorInstruction, STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
+        StakeDepositInterceptorInstruction, UpdateStakePoolDepositStakeAuthorityArgs,
+        STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
     },
     state::StakePoolDepositStakeAuthority,
 };
@@ -121,11 +122,74 @@ impl Processor {
         Ok(())
     }
 
+    pub fn process_update_deposit_stake_authority(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        update_deposit_stake_authority_args: UpdateStakePoolDepositStakeAuthorityArgs,
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let deposit_stake_authority_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+        let authority_info = next_account_info(account_info_iter)?;
+        let new_authority_info = next_account_info(account_info_iter).ok();
+
+        // Validate: program owns `StakePoolDepositStakeAuthority`
+        check_account_owner(deposit_stake_authority_info, program_id)?;
+
+        // Validate: authority is signer
+        if !authority_info.is_signer {
+            return Err(StakeDepositInterceptorError::SignatureMissing.into());
+        }
+
+        let mut deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
+            &deposit_stake_authority_info.data.borrow(),
+        )?;
+
+        check_deposit_stake_authority_address(
+            program_id,
+            deposit_stake_authority_info.key,
+            &deposit_stake_authority.stake_pool,
+            deposit_stake_authority.bump_seed,
+        )?;
+
+        // Validate: authority matches
+        if deposit_stake_authority.authority != *authority_info.key {
+            return Err(StakeDepositInterceptorError::InvalidAuthority.into());
+        }
+
+        if let Some(new_authority) = new_authority_info {
+            // Validate: new_authority has also signed the transaction
+            if !new_authority.is_signer {
+                return Err(StakeDepositInterceptorError::SignatureMissing.into());
+            }
+            deposit_stake_authority.authority = *new_authority.key;
+        }
+
+        if let Some(cool_down_period) = update_deposit_stake_authority_args.cool_down_period {
+            deposit_stake_authority.cool_down_period = PodU64::from(cool_down_period);
+        }
+        if let Some(initial_fee_rate) = update_deposit_stake_authority_args.initial_fee_rate {
+            deposit_stake_authority.inital_fee_rate = PodU32::from(initial_fee_rate);
+        }
+        if let Some(fee_wallet) = update_deposit_stake_authority_args.fee_wallet {
+            deposit_stake_authority.fee_wallet = fee_wallet;
+        }
+
+        borsh::to_writer(
+            &mut deposit_stake_authority_info.data.borrow_mut()[..],
+            &deposit_stake_authority,
+        )?;
+
+        Ok(())
+    }
+
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         let instruction = StakeDepositInterceptorInstruction::try_from_slice(input)?;
         match instruction {
-            StakeDepositInterceptorInstruction::StakePoolDepositStakeAuthority(args) => {
+            StakeDepositInterceptorInstruction::InitStakePoolDepositStakeAuthority(args) => {
                 Self::process_init_stake_pool_deposit_stake_authority(program_id, accounts, args)?;
+            }
+            StakeDepositInterceptorInstruction::UpdateStakePoolDepositStakeAuthority(args) => {
+                Self::process_update_deposit_stake_authority(program_id, accounts, args)?;
             }
             _ => {}
         }
@@ -205,4 +269,26 @@ fn create_pda_account<'a>(
             &[new_pda_signer_seeds],
         )
     }
+}
+
+/// Check the validity of the supplied deposit_stake_authority given the relevant seeds.
+pub fn check_deposit_stake_authority_address(
+    program_id: &Pubkey,
+    deposit_stake_authority: &Pubkey,
+    stake_pool: &Pubkey,
+    bump_seed: u8,
+) -> Result<(), ProgramError> {
+    let address = Pubkey::create_program_address(
+        &[
+            STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
+            &stake_pool.to_bytes(),
+            &[bump_seed],
+        ],
+        program_id,
+    )?;
+    if address != *deposit_stake_authority {
+        return Err(StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority.into());
+    }
+
+    Ok(())
 }

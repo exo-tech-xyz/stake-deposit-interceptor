@@ -15,11 +15,20 @@ pub struct InitStakePoolDepositStakeAuthorityArgs {
     pub bump_seed: u8,
 }
 
+/// Update arguments for StakePoolDepositStakeAuthority
+#[repr(C)]
+#[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
+pub struct UpdateStakePoolDepositStakeAuthorityArgs {
+    pub fee_wallet: Option<Pubkey>,
+    pub cool_down_period: Option<u64>,
+    pub initial_fee_rate: Option<u32>,
+}
+
 /// Instructions supported by the StakeDepositInterceptor program.
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub enum StakeDepositInterceptorInstruction {
-    ///   Initializes the StakePoolDepositStakeAuthority for the program.
+    ///   Initializes the StakePoolDepositStakeAuthority for the given StakePool.
     ///
     ///   0. `[w,s]` Payer that will fund the StakePoolDepositStakeAuthority account.
     ///   1. `[w]` New StakePoolDepositStakeAuthority to create.
@@ -27,7 +36,12 @@ pub enum StakeDepositInterceptorInstruction {
     ///   3. `[]` StakePool
     ///   4. `[]` StakePool Program ID
     ///   5. `[]` System program
-    StakePoolDepositStakeAuthority(InitStakePoolDepositStakeAuthorityArgs),
+    InitStakePoolDepositStakeAuthority(InitStakePoolDepositStakeAuthorityArgs),
+    ///   Updates the StakePoolDepositStakeAuthority for the given StakePool.
+    ///
+    ///   0. `[w]` StakePoolDepositStakeAuthority PDA to be updated
+    ///   1. `[s]` Authority
+    UpdateStakePoolDepositStakeAuthority(UpdateStakePoolDepositStakeAuthorityArgs),
     DepositStake,
 }
 
@@ -77,7 +91,40 @@ pub fn create_init_deposit_stake_authority_instruction(
         program_id: *program_id,
         accounts,
         data: borsh::to_vec(
-            &StakeDepositInterceptorInstruction::StakePoolDepositStakeAuthority(args),
+            &StakeDepositInterceptorInstruction::InitStakePoolDepositStakeAuthority(args),
+        )
+        .unwrap(),
+    }
+}
+
+pub fn create_update_deposit_stake_authority_instruction(
+    program_id: &Pubkey,
+    stake_pool: &Pubkey,
+    authority: &Pubkey,
+    new_authority: Option<Pubkey>,
+    fee_wallet: Option<Pubkey>,
+    cool_down_period: Option<u64>,
+    initial_fee_rate: Option<u32>,
+) -> Instruction {
+    let (deposit_stake_authority_pubkey, _bump_seed) =
+        derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
+    let args = UpdateStakePoolDepositStakeAuthorityArgs {
+        fee_wallet: fee_wallet,
+        initial_fee_rate: initial_fee_rate,
+        cool_down_period: cool_down_period,
+    };
+    let mut accounts = vec![
+        AccountMeta::new(deposit_stake_authority_pubkey, false),
+        AccountMeta::new_readonly(*authority, true),
+    ];
+    if let Some(new_authority) = new_authority {
+        accounts.push(AccountMeta::new(new_authority, true));
+    }
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: borsh::to_vec(
+            &StakeDepositInterceptorInstruction::UpdateStakePoolDepositStakeAuthority(args),
         )
         .unwrap(),
     }

@@ -17,4 +17,10 @@ pub enum StakeDepositInterceptorError {
     /// 4 : Invalid StakePool Manager
     #[error("StakePool manager is invalid")]
     InvalidStakePoolManager,
+    /// 5 : Invalid Authority
+    #[error("Authority is invalid")]
+    InvalidAuthority,
+    /// 6 : Invalid StakePoolDepositStakeAuthority
+    #[error("StakePoolDepositStakeAuthority key is invalid")]
+    InvalidStakePoolDepositStakeAuthority,
 }
