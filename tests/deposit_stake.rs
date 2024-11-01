@@ -2,8 +2,9 @@ mod helpers;
 
 use helpers::{
     airdrop_lamports, create_stake_account, create_stake_deposit_authority, create_token_account,
-    create_validator_and_add_to_pool, delegate_stake_account, get_account, get_account_data_deserialized,
-    program_test_context_with_stake_pool_state, stake_pool_update_all,
+    create_validator_and_add_to_pool, delegate_stake_account, get_account,
+    get_account_data_deserialized, program_test_context_with_stake_pool_state,
+    stake_pool_update_all, update_stake_deposit_authority,
 };
 use solana_sdk::{
     borsh1::try_from_slice_unchecked,
@@ -32,7 +33,18 @@ async fn test_deposit_stake() {
     let stake_pool =
         try_from_slice_unchecked::<spl_stake_pool::state::StakePool>(&stake_pool_account.data)
             .unwrap();
-    //  TODO update stake_pool's stake_deposit_authority
+    let (deposit_stake_authority_pubkey, _bump) = derive_stake_pool_deposit_stake_authority(
+        &stake_deposit_interceptor::id(),
+        &stake_pool_accounts.stake_pool,
+    );
+    // Set the StakePool's stake_deposit_authority to the interceptor program's PDA
+    update_stake_deposit_authority(
+        &mut ctx.banks_client,
+        &stake_pool_accounts,
+        &deposit_stake_authority_pubkey,
+        &ctx.payer,
+        ctx.last_blockhash,
+    ).await;
     // Add a validator to the stake_pool
     let validator_stake_accounts =
         create_validator_and_add_to_pool(&mut ctx, &stake_pool_accounts).await;
@@ -101,10 +113,6 @@ async fn test_deposit_stake() {
     .await;
 
     // Get latest `StakePoolDepositStakeAuthority``
-    let (deposit_stake_authority_pubkey, _bump) = derive_stake_pool_deposit_stake_authority(
-        &stake_deposit_interceptor::id(),
-        &stake_pool_accounts.stake_pool,
-    );
     let deposit_stake_authority = get_account_data_deserialized::<StakePoolDepositStakeAuthority>(
         &mut ctx.banks_client,
         &deposit_stake_authority_pubkey,
@@ -148,7 +156,6 @@ async fn test_deposit_stake() {
     // TODO be more prudent by checking the exact amount of tokens based on stake_amount.
     // assert LST was transfer to the vault
     assert!(vault.amount > 0);
-
 
     // TODO assert DepositReceipt has valid data
 }

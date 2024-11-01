@@ -291,6 +291,30 @@ pub async fn create_stake_pool(ctx: &mut ProgramTestContext) -> StakePoolAccount
     }
 }
 
+/// Updates the stake_deposit_authority on the given StakePool.
+pub async fn update_stake_deposit_authority(
+    banks_client: &mut BanksClient,
+    stake_pool_accounts: &StakePoolAccounts,
+    new_stake_deposit_authority: &Pubkey,
+    manager: &Keypair,
+    recent_blockhash: Hash,
+) {
+    let instruction = spl_stake_pool::instruction::set_funding_authority(
+        &spl_stake_pool::id(),
+        &stake_pool_accounts.stake_pool,
+        &manager.pubkey(),
+        Some(new_stake_deposit_authority),
+        spl_stake_pool::instruction::FundingType::StakeDeposit,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&manager.pubkey()),
+        &[manager],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+}
+
 /// Deposit Sol into the stake pool
 pub async fn deposit_sol(
     banks_client: &mut BanksClient,
@@ -339,7 +363,8 @@ pub async fn create_validator_and_add_to_pool(
     );
 
     // Create a pool_mint account to receive the LST from DepositSol below
-    let pool_token_account = create_token_account(ctx, &ctx.payer.pubkey(), &stake_pool_accounts.pool_mint).await;
+    let pool_token_account =
+        create_token_account(ctx, &ctx.payer.pubkey(), &stake_pool_accounts.pool_mint).await;
 
     let rent = ctx.banks_client.get_rent().await.unwrap();
     let stake_rent = rent.minimum_balance(std::mem::size_of::<stake::state::StakeStateV2>());
