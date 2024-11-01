@@ -220,11 +220,9 @@ fn deposit_stake_internal(
         AccountMeta::new_readonly(*stake_pool_program_id, false),
         AccountMeta::new(*stake_pool, false),
         AccountMeta::new(*validator_list_storage, false),
+        // This is our PDA that will signed the CPI
+        AccountMeta::new_readonly(*stake_pool_deposit_authority, false),
     ];
-    accounts.push(AccountMeta::new_readonly(
-        *stake_pool_deposit_authority,
-        true,
-    ));
     instructions.extend_from_slice(&[
         stake::instruction::authorize(
             deposit_stake_address,
@@ -297,6 +295,8 @@ pub fn create_deposit_stake_instruction(
     pool_mint: &Pubkey,
     token_program_id: &Pubkey,
 ) -> Vec<Instruction> {
+    // The StakePool's deposit authority is assumed to be the PDA owned by
+    // the stake-deposit-interceptor program
     let (deposit_stake_authority_pubkey, _bump_seed) =
         derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
     deposit_stake_internal(

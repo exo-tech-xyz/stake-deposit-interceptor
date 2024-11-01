@@ -5,13 +5,14 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     borsh1::try_from_slice_unchecked,
     entrypoint::ProgramResult,
+    instruction::{AccountMeta, Instruction},
     msg,
     program::{invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
-    sysvar::Sysvar,
+    stake, system_instruction,
+    sysvar::{self, Sysvar},
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_pod::primitives::{PodU32, PodU64};
@@ -114,9 +115,9 @@ impl Processor {
         // Create and initialize the Vault ATA
         invoke_signed(
             &spl_associated_token_account::instruction::create_associated_token_account(
-                &payer_info.key,               // Funding account
+                &payer_info.key,              // Funding account
                 &deposit_stake_authority_pda, // Owner of the ATA
-                &stake_pool.pool_mint,         // Mint address for the token
+                &stake_pool.pool_mint,        // Mint address for the token
                 token_program_info.key,
             ),
             &[
@@ -166,6 +167,8 @@ impl Processor {
         Ok(())
     }
 
+    /// Update `StakePoolDepositStakeAuthority` authority, fee_wallet, cool_down_period, and/or initial_fee_rate.
+    /// ONLY accessible by the currnet authority.
     pub fn process_update_deposit_stake_authority(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -226,6 +229,60 @@ impl Processor {
         Ok(())
     }
 
+    pub fn process_deposit_stake(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let stake_pool_program_info = next_account_info(account_info_iter)?;
+        let stake_pool_info = next_account_info(account_info_iter)?;
+        let validator_stake_list_info = next_account_info(account_info_iter)?;
+        let deposit_stake_authority_info = next_account_info(account_info_iter)?;
+        let withdraw_authority_info = next_account_info(account_info_iter)?;
+        let stake_info = next_account_info(account_info_iter)?;
+        let validator_stake_account_info = next_account_info(account_info_iter)?;
+        let reserve_stake_account_info = next_account_info(account_info_iter)?;
+        let dest_user_pool_info = next_account_info(account_info_iter)?;
+        let manager_fee_info = next_account_info(account_info_iter)?;
+        let referrer_fee_info = next_account_info(account_info_iter)?;
+        let pool_mint_info = next_account_info(account_info_iter)?;
+        let clock_info = next_account_info(account_info_iter)?;
+        let stake_history_info = next_account_info(account_info_iter)?;
+        let token_program_info = next_account_info(account_info_iter)?;
+        let stake_program_info = next_account_info(account_info_iter)?;
+
+        // Validate `StakePoolDepositStakeAuthority` is owned by current program.
+        check_account_owner(deposit_stake_authority_info, program_id)?;
+
+        // NOTE: we assume that stake-pool program makes all of the assertions that the SPL stake-pool program does.
+
+        let deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
+            &deposit_stake_authority_info.data.borrow(),
+        )?;
+
+        // TODO check StakePoolDepositStakeAuthority PDA is correct
+
+        // CPI to SPL stake-pool program to invoke DepositStake with the `StakePoolDepositStakeAuthority` as the
+        // `stake_deposit_authority`.
+        deposit_stake_cpi(
+            stake_pool_program_info,
+            stake_pool_info,
+            validator_stake_list_info,
+            deposit_stake_authority_info,
+            withdraw_authority_info,
+            stake_info,
+            validator_stake_account_info,
+            reserve_stake_account_info,
+            dest_user_pool_info,
+            manager_fee_info,
+            referrer_fee_info,
+            pool_mint_info,
+            token_program_info,
+            clock_info,
+            stake_history_info,
+            stake_program_info,
+            deposit_stake_authority.bump_seed,
+        )?;
+        Ok(())
+    }
+
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         let instruction = StakeDepositInterceptorInstruction::try_from_slice(input)?;
         match instruction {
@@ -234,6 +291,9 @@ impl Processor {
             }
             StakeDepositInterceptorInstruction::UpdateStakePoolDepositStakeAuthority(args) => {
                 Self::process_update_deposit_stake_authority(program_id, accounts, args)?;
+            }
+            StakeDepositInterceptorInstruction::DepositStake => {
+                Self::process_deposit_stake(program_id, accounts)?;
             }
             _ => {}
         }
@@ -313,6 +373,75 @@ fn create_pda_account<'a>(
             &[new_pda_signer_seeds],
         )
     }
+}
+
+fn deposit_stake_cpi<'a>(
+    program_info: &AccountInfo<'a>,
+    stake_pool_info: &AccountInfo<'a>,
+    validator_list_storage_info: &AccountInfo<'a>,
+    stake_pool_deposit_authority_info: &AccountInfo<'a>,
+    stake_pool_withdraw_authority_info: &AccountInfo<'a>,
+    deposit_stake_address_info: &AccountInfo<'a>,
+    validator_stake_account_info: &AccountInfo<'a>,
+    reserve_stake_account_info: &AccountInfo<'a>,
+    pool_tokens_to_info: &AccountInfo<'a>,
+    manager_fee_account_info: &AccountInfo<'a>,
+    referrer_pool_tokens_account_info: &AccountInfo<'a>,
+    pool_mint_info: &AccountInfo<'a>,
+    token_program_id_info: &AccountInfo<'a>,
+    sysvar_clock_info: &AccountInfo<'a>,
+    sysvar_stake_history: &AccountInfo<'a>,
+    stake_program_info: &AccountInfo<'a>,
+    bump_seed: u8,
+) -> Result<(), ProgramError> {
+    let account_infos = vec![
+        stake_pool_info.clone(),
+        validator_list_storage_info.clone(),
+        stake_pool_deposit_authority_info.clone(),
+        stake_pool_withdraw_authority_info.clone(),
+        deposit_stake_address_info.clone(),
+        validator_stake_account_info.clone(),
+        reserve_stake_account_info.clone(),
+        pool_tokens_to_info.clone(),
+        manager_fee_account_info.clone(),
+        referrer_pool_tokens_account_info.clone(),
+        pool_mint_info.clone(),
+        sysvar_clock_info.clone(),
+        sysvar_stake_history.clone(),
+        token_program_id_info.clone(),
+        stake_program_info.clone(),
+    ];
+    // TODO remove duplicated lists
+    let accounts = vec![
+        AccountMeta::new(*stake_pool_info.key, false),
+        AccountMeta::new(*validator_list_storage_info.key, false),
+        AccountMeta::new_readonly(*stake_pool_deposit_authority_info.key, true),
+        AccountMeta::new_readonly(*stake_pool_withdraw_authority_info.key, false),
+        AccountMeta::new(*deposit_stake_address_info.key, false),
+        AccountMeta::new(*validator_stake_account_info.key, false),
+        AccountMeta::new(*reserve_stake_account_info.key, false),
+        AccountMeta::new(*pool_tokens_to_info.key, false),
+        AccountMeta::new(*manager_fee_account_info.key, false),
+        AccountMeta::new(*referrer_pool_tokens_account_info.key, false),
+        AccountMeta::new(*pool_mint_info.key, false),
+        AccountMeta::new_readonly(*sysvar_clock_info.key, false),
+        AccountMeta::new_readonly(*sysvar_stake_history.key, false),
+        AccountMeta::new_readonly(*token_program_id_info.key, false),
+        AccountMeta::new_readonly(*stake_program_info.key, false),
+    ];
+
+    let ix = Instruction {
+        program_id: *program_info.key,
+        accounts,
+        data: borsh::to_vec(&spl_stake_pool::instruction::StakePoolInstruction::DepositStake)
+            .unwrap(),
+    };
+    let signers_seeds = [
+        STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
+        &stake_pool_info.key.to_bytes(),
+        &[bump_seed],
+    ];
+    invoke_signed(&ix, &account_infos, &[&signers_seeds])
 }
 
 /// Check the validity of the supplied deposit_stake_authority given the relevant seeds.
