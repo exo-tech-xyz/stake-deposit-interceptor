@@ -10,10 +10,10 @@ use stake_deposit_interceptor::{
 
 #[tokio::test]
 async fn test_update_deposit_stake_authority() {
-    let (mut ctx, stake_pool_pubkey) = program_test_context_with_stake_pool_state().await;
+    let (mut ctx, stake_pool_accounts) = program_test_context_with_stake_pool_state().await;
     let stake_pool_account = ctx
         .banks_client
-        .get_account(stake_pool_pubkey)
+        .get_account(stake_pool_accounts.stake_pool)
         .await
         .unwrap()
         .unwrap();
@@ -24,7 +24,7 @@ async fn test_update_deposit_stake_authority() {
     let authority = Keypair::new();
     create_stake_deposit_authority(
         &mut ctx,
-        &stake_pool_pubkey,
+        &stake_pool_accounts.stake_pool,
         &stake_pool.pool_mint,
         &authority,
     )
@@ -38,7 +38,7 @@ async fn test_update_deposit_stake_authority() {
     let update_ix =
         stake_deposit_interceptor::instruction::create_update_deposit_stake_authority_instruction(
             &stake_deposit_interceptor::id(),
-            &stake_pool_pubkey,
+            &stake_pool_accounts.stake_pool,
             &authority.pubkey(),
             Some(new_authority.pubkey()),
             Some(fee_wallet.pubkey()),
@@ -57,7 +57,7 @@ async fn test_update_deposit_stake_authority() {
 
     let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::ID,
-        &stake_pool_pubkey,
+        &stake_pool_accounts.stake_pool,
     );
 
     let account = ctx

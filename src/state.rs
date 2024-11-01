@@ -36,3 +36,21 @@ impl StakePoolDepositStakeAuthority {
         return false;
     }
 }
+
+/// Representation of some amount of claimable LST
+#[repr(C)]
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug, PartialEq, Pod, Zeroable)]
+pub struct DepositReceipt {
+	/// A generated seed for the PDA of this receipt
+	pub base: Pubkey,
+	/// Owner of the Deposit receipt who must sign to claim
+	pub owner: Pubkey,
+	/// Timestamp of original deposit invocation
+	pub deposit_time: PodU64,
+	/// Total amount of claimable lst that was minted during Deposit
+	pub lst_amount: PodU64,
+	/// Cool down period at time of deposit
+	pub cool_down_period: PodU64,
+	/// Initial fee rate at time of deposit
+	pub initial_fee_rate: PodU64,
+}

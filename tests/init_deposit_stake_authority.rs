@@ -12,11 +12,11 @@ use stake_deposit_interceptor::{
 
 #[tokio::test]
 async fn test_init_deposit_stake_authority() {
-    let (mut ctx, stake_pool_pubkey) = program_test_context_with_stake_pool_state().await;
+    let (mut ctx, stake_pool_accounts) = program_test_context_with_stake_pool_state().await;
 
     let stake_pool_account = ctx
         .banks_client
-        .get_account(stake_pool_pubkey)
+        .get_account(stake_pool_accounts.stake_pool)
         .await
         .unwrap()
         .unwrap();
@@ -32,7 +32,7 @@ async fn test_init_deposit_stake_authority() {
         stake_deposit_interceptor::instruction::create_init_deposit_stake_authority_instruction(
             &stake_deposit_interceptor::id(),
             &ctx.payer.pubkey(),
-            &stake_pool_pubkey,
+            &stake_pool_accounts.stake_pool,
             &stake_pool.pool_mint,
             &ctx.payer.pubkey(),
             &spl_stake_pool::id(),
@@ -54,7 +54,7 @@ async fn test_init_deposit_stake_authority() {
 
     let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::ID,
-        &stake_pool_pubkey,
+        &stake_pool_accounts.stake_pool,
     );
     let vault_ata =
         get_associated_token_address(&deposit_stake_authority_pubkey, &stake_pool.pool_mint);
@@ -85,7 +85,7 @@ async fn test_init_deposit_stake_authority() {
     let actual_initial_fee_rate: u32 = deposit_stake_authority.inital_fee_rate.into();
     assert_eq!(actual_cool_down_period, cool_down_period);
     assert_eq!(actual_initial_fee_rate, initial_fee_rate);
-    assert_eq!(deposit_stake_authority.stake_pool, stake_pool_pubkey);
+    assert_eq!(deposit_stake_authority.stake_pool, stake_pool_accounts.stake_pool);
     assert_eq!(deposit_stake_authority.pool_mint, stake_pool.pool_mint);
     assert_eq!(
         deposit_stake_authority.stake_pool_program_id,

@@ -43,7 +43,7 @@ pub async fn create_mint(ctx: &mut ProgramTestContext) -> Pubkey {
 }
 
 /// Create a SPL Token Account owned by the ProgramTestContext `payer`
-pub async fn create_token_account(ctx: &mut ProgramTestContext, mint: &Pubkey) -> Pubkey {
+pub async fn create_token_account(ctx: &mut ProgramTestContext, owner: &Pubkey, mint: &Pubkey) -> Pubkey {
     let keypair = Keypair::new();
     let rent = ctx.banks_client.get_rent().await.unwrap();
 
@@ -58,7 +58,7 @@ pub async fn create_token_account(ctx: &mut ProgramTestContext, mint: &Pubkey) -
         &spl_token::id(),
         &keypair.pubkey(),
         mint,
-        &ctx.payer.pubkey(),
+        owner,
     )
     .unwrap();
 
