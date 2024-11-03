@@ -10,6 +10,7 @@ use solana_program::{
     msg,
     program::{invoke, invoke_signed},
     program_error::ProgramError,
+    program_pack::Pack,
     pubkey::Pubkey,
     rent::Rent,
     system_instruction,
@@ -17,6 +18,7 @@ use solana_program::{
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_pod::primitives::{PodU32, PodU64};
+use spl_token::state::Account;
 
 use crate::{
     error::StakeDepositInterceptorError,
@@ -83,7 +85,7 @@ impl Processor {
             return Err(StakeDepositInterceptorError::InvalidTokenProgram.into());
         }
 
-        let (deposit_stake_authority_pda, _bump_seed) =
+        let (deposit_stake_authority_pda, bump_seed) =
             derive_stake_pool_deposit_stake_authority(program_id, stake_pool_info.key);
 
         if deposit_stake_authority_pda != *deposit_stake_authority_info.key {
@@ -93,7 +95,7 @@ impl Processor {
         let pda_seeds = [
             STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
             &stake_pool_info.key.to_bytes(),
-            &[init_deposit_stake_authority_args.bump_seed],
+            &[bump_seed],
         ];
         // Create and initialize the StakePoolDepositStakeAuthority account
         create_pda_account(
@@ -160,7 +162,7 @@ impl Processor {
             PodU64::from_primitive(init_deposit_stake_authority_args.cool_down_period);
         deposit_stake_authority.inital_fee_rate =
             PodU32::from_primitive(init_deposit_stake_authority_args.initial_fee_rate);
-        deposit_stake_authority.bump_seed = init_deposit_stake_authority_args.bump_seed;
+        deposit_stake_authority.bump_seed = bump_seed;
         borsh::to_writer(
             &mut deposit_stake_authority_info.data.borrow_mut()[..],
             &deposit_stake_authority,
@@ -247,7 +249,7 @@ impl Processor {
         let stake_info = next_account_info(account_info_iter)?;
         let validator_stake_account_info = next_account_info(account_info_iter)?;
         let reserve_stake_account_info = next_account_info(account_info_iter)?;
-        let dest_user_pool_info = next_account_info(account_info_iter)?;
+        let pool_tokens_vault_info = next_account_info(account_info_iter)?;
         let manager_fee_info = next_account_info(account_info_iter)?;
         let referrer_fee_info = next_account_info(account_info_iter)?;
         let pool_mint_info = next_account_info(account_info_iter)?;
@@ -266,7 +268,19 @@ impl Processor {
             &deposit_stake_authority_info.data.borrow(),
         )?;
 
-        // TODO check StakePoolDepositStakeAuthority PDA is correct
+        // Validate StakePoolDepositStakeAuthority PDA is correct
+        check_deposit_stake_authority_address(
+            program_id,
+            deposit_stake_authority_info.key,
+            &deposit_stake_authority.stake_pool,
+            deposit_stake_authority.bump_seed,
+        )?;
+        // Validate Vault token account to receive pool tokens is coorect.
+        if pool_tokens_vault_info.key != &deposit_stake_authority.vault {
+            return Err(StakeDepositInterceptorError::InvalidVault.into());
+        }
+
+        let vault_token_account_before = Account::unpack(&pool_tokens_vault_info.data.borrow())?;
 
         // CPI to SPL stake-pool program to invoke DepositStake with the `StakePoolDepositStakeAuthority` as the
         // `stake_deposit_authority`.
@@ -279,7 +293,7 @@ impl Processor {
             stake_info,
             validator_stake_account_info,
             reserve_stake_account_info,
-            dest_user_pool_info,
+            pool_tokens_vault_info,
             manager_fee_info,
             referrer_fee_info,
             pool_mint_info,
@@ -289,6 +303,10 @@ impl Processor {
             stake_program_info,
             deposit_stake_authority.bump_seed,
         )?;
+
+        let vault_token_account_after = Account::unpack(&pool_tokens_vault_info.data.borrow())?;
+        let pool_tokens_minted =
+            vault_token_account_after.amount - vault_token_account_before.amount;
 
         // Create the DepositReceipt
 
@@ -333,7 +351,7 @@ impl Processor {
         // convert time of i64 to u64 for storage.
         deposit_receipt.deposit_time =
             u64::from_le_bytes(clock.unix_timestamp.to_le_bytes()).into();
-        // TODO add LST amount by getting account diff
+        deposit_receipt.lst_amount = PodU64::from(pool_tokens_minted);
         deposit_receipt.cool_down_period = deposit_stake_authority.cool_down_period;
         deposit_receipt.initial_fee_rate = deposit_stake_authority.inital_fee_rate;
         deposit_receipt.bump_seed = bump_seed;
@@ -437,6 +455,7 @@ fn create_pda_account<'a>(
     }
 }
 
+/// Invokes the `DepositStake` instruction for the given stake-pool program.
 fn deposit_stake_cpi<'a>(
     program_info: &AccountInfo<'a>,
     stake_pool_info: &AccountInfo<'a>,

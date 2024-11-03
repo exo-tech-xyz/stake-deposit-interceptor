@@ -16,6 +16,7 @@ use solana_sdk::{
     stake::{self},
     transaction::Transaction,
 };
+use spl_pod::primitives::PodU64;
 use stake_deposit_interceptor::{
     instruction::{derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority},
     state::{DepositReceipt, StakePoolDepositStakeAuthority},
@@ -24,6 +25,7 @@ use stake_deposit_interceptor::{
 #[tokio::test]
 async fn test_deposit_stake() {
     let (mut ctx, stake_pool_accounts) = program_test_context_with_stake_pool_state().await;
+    let rent = ctx.banks_client.get_rent().await.unwrap();
     let stake_pool_account = ctx
         .banks_client
         .get_account(stake_pool_accounts.stake_pool)
@@ -69,6 +71,8 @@ async fn test_deposit_stake() {
     };
     let lockup = stake::state::Lockup::default();
     let stake_amount = 2 * LAMPORTS_PER_SOL;
+    let total_staked_amount =
+        rent.minimum_balance(std::mem::size_of::<stake::state::StakeStateV2>()) + stake_amount;
     let depositor_stake_account = create_stake_account(
         &mut ctx.banks_client,
         &depositor,
@@ -80,7 +84,7 @@ async fn test_deposit_stake() {
     .await;
 
     // Create a TokenAccount for the "Depositor" of the StakePool's `pool_mint`.
-    let depositor_lst_account = create_token_account(
+    let _depositor_lst_account = create_token_account(
         &mut ctx,
         &depositor.pubkey(),
         &stake_pool_accounts.pool_mint,
@@ -120,9 +124,6 @@ async fn test_deposit_stake() {
     )
     .await;
 
-    // signers: `deposit_stake_withdraw_authority`, `stake_pool_deposit_authority`
-    // TODO who is `stake_pool_deposit_authority`?? It's our PDA deposit_stake_authority_pubkey
-
     // Generate a random Pubkey as seed for DepositReceipt PDA.
     let base = Pubkey::new_unique();
 
@@ -159,9 +160,12 @@ async fn test_deposit_stake() {
     let vault_account = get_account(&mut ctx.banks_client, &deposit_stake_authority.vault).await;
     let vault = spl_token::state::Account::unpack(&vault_account.data).unwrap();
 
-    // TODO be more prudent by checking the exact amount of tokens based on stake_amount.
+    let pool_tokens_amount =
+        spl_stake_pool::state::StakePool::calc_pool_tokens_for_deposit(&stake_pool, total_staked_amount)
+            .unwrap();
+
     // assert LST was transfer to the vault
-    assert!(vault.amount > 0);
+    assert_eq!(vault.amount, pool_tokens_amount);
 
     // Assert DepositReceipt has correct data.
     let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
@@ -178,8 +182,15 @@ async fn test_deposit_stake() {
     assert_eq!(deposit_receipt.owner, depositor.pubkey());
     assert_eq!(deposit_receipt.base, base);
     assert_eq!(deposit_receipt.bump_seed, bump_seed);
-    assert_eq!(deposit_receipt.cool_down_period, deposit_stake_authority.cool_down_period);
-    assert_eq!(deposit_receipt.initial_fee_rate, deposit_stake_authority.inital_fee_rate);
+    assert_eq!(deposit_receipt.lst_amount, PodU64::from(pool_tokens_amount));
+    assert_eq!(
+        deposit_receipt.cool_down_period,
+        deposit_stake_authority.cool_down_period
+    );
+    assert_eq!(
+        deposit_receipt.initial_fee_rate,
+        deposit_stake_authority.inital_fee_rate
+    );
     let deposit_time: u64 = deposit_receipt.deposit_time.into();
     assert!(deposit_time > 0);
 }
