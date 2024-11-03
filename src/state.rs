@@ -49,8 +49,10 @@ pub struct DepositReceipt {
 	pub deposit_time: PodU64,
 	/// Total amount of claimable lst that was minted during Deposit
 	pub lst_amount: PodU64,
-	/// Cool down period at time of deposit
+	/// Cool down period at time of deposit.
 	pub cool_down_period: PodU64,
 	/// Initial fee rate at time of deposit
-	pub initial_fee_rate: PodU64,
+	pub initial_fee_rate: PodU32,
+    /// Bump seed for derivation
+    pub bump_seed: u8,
 }

@@ -13,12 +13,12 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    stake::{self, instruction::delegate_stake},
-    system_instruction,
+    stake::{self},
     transaction::Transaction,
 };
 use stake_deposit_interceptor::{
-    instruction::derive_stake_pool_deposit_stake_authority, state::StakePoolDepositStakeAuthority,
+    instruction::{derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority},
+    state::{DepositReceipt, StakePoolDepositStakeAuthority},
 };
 
 #[tokio::test]
@@ -44,7 +44,8 @@ async fn test_deposit_stake() {
         &deposit_stake_authority_pubkey,
         &ctx.payer,
         ctx.last_blockhash,
-    ).await;
+    )
+    .await;
     // Add a validator to the stake_pool
     let validator_stake_accounts =
         create_validator_and_add_to_pool(&mut ctx, &stake_pool_accounts).await;
@@ -122,10 +123,14 @@ async fn test_deposit_stake() {
     // signers: `deposit_stake_withdraw_authority`, `stake_pool_deposit_authority`
     // TODO who is `stake_pool_deposit_authority`?? It's our PDA deposit_stake_authority_pubkey
 
+    // Generate a random Pubkey as seed for DepositReceipt PDA.
+    let base = Pubkey::new_unique();
+
     // Actually test DepositStake
     let deposit_stake_instructions =
         stake_deposit_interceptor::instruction::create_deposit_stake_instruction(
             &stake_deposit_interceptor::id(),
+            &depositor.pubkey(),
             &spl_stake_pool::id(),
             &stake_pool_accounts.stake_pool,
             &stake_pool_accounts.validator_list,
@@ -139,6 +144,7 @@ async fn test_deposit_stake() {
             &stake_pool_accounts.pool_fee_account,
             &stake_pool_accounts.pool_mint,
             &spl_token::id(),
+            &base,
         );
 
     let tx = Transaction::new_signed_with_payer(
@@ -157,7 +163,25 @@ async fn test_deposit_stake() {
     // assert LST was transfer to the vault
     assert!(vault.amount > 0);
 
-    // TODO assert DepositReceipt has valid data
+    // Assert DepositReceipt has correct data.
+    let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
+        &stake_deposit_interceptor::id(),
+        &authorized.withdrawer,
+        &stake_pool_accounts.stake_pool,
+        &base,
+    );
+    let deposit_receipt = get_account_data_deserialized::<DepositReceipt>(
+        &mut ctx.banks_client,
+        &deposit_receipt_pda,
+    )
+    .await;
+    assert_eq!(deposit_receipt.owner, depositor.pubkey());
+    assert_eq!(deposit_receipt.base, base);
+    assert_eq!(deposit_receipt.bump_seed, bump_seed);
+    assert_eq!(deposit_receipt.cool_down_period, deposit_stake_authority.cool_down_period);
+    assert_eq!(deposit_receipt.initial_fee_rate, deposit_stake_authority.inital_fee_rate);
+    let deposit_time: u64 = deposit_receipt.deposit_time.into();
+    assert!(deposit_time > 0);
 }
 
 // TODO test incorrect TokenAccount for LST

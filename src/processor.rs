@@ -4,6 +4,7 @@ use borsh::BorshDeserialize;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     borsh1::try_from_slice_unchecked,
+    clock::Clock,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
@@ -11,8 +12,8 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    stake, system_instruction,
-    sysvar::{self, Sysvar},
+    system_instruction,
+    sysvar::Sysvar,
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_pod::primitives::{PodU32, PodU64};
@@ -20,11 +21,12 @@ use spl_pod::primitives::{PodU32, PodU64};
 use crate::{
     error::StakeDepositInterceptorError,
     instruction::{
-        derive_stake_pool_deposit_stake_authority, InitStakePoolDepositStakeAuthorityArgs,
-        StakeDepositInterceptorInstruction, UpdateStakePoolDepositStakeAuthorityArgs,
+        derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority, DepositStakeArgs,
+        InitStakePoolDepositStakeAuthorityArgs, StakeDepositInterceptorInstruction,
+        UpdateStakePoolDepositStakeAuthorityArgs, DEPOSIT_RECEIPT,
         STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
     },
-    state::StakePoolDepositStakeAuthority,
+    state::{DepositReceipt, StakePoolDepositStakeAuthority},
 };
 
 pub struct Processor;
@@ -229,9 +231,15 @@ impl Processor {
         Ok(())
     }
 
-    pub fn process_deposit_stake(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    pub fn process_deposit_stake(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        deposit_stake_args: DepositStakeArgs,
+    ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
+        let payer_info = next_account_info(account_info_iter)?;
         let stake_pool_program_info = next_account_info(account_info_iter)?;
+        let deposit_receipt_info = next_account_info(account_info_iter)?;
         let stake_pool_info = next_account_info(account_info_iter)?;
         let validator_stake_list_info = next_account_info(account_info_iter)?;
         let deposit_stake_authority_info = next_account_info(account_info_iter)?;
@@ -247,6 +255,7 @@ impl Processor {
         let stake_history_info = next_account_info(account_info_iter)?;
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
+        let system_program_info = next_account_info(account_info_iter)?;
 
         // Validate `StakePoolDepositStakeAuthority` is owned by current program.
         check_account_owner(deposit_stake_authority_info, program_id)?;
@@ -280,6 +289,59 @@ impl Processor {
             stake_program_info,
             deposit_stake_authority.bump_seed,
         )?;
+
+        // Create the DepositReceipt
+
+        let rent = Rent::get()?;
+        let clock = Clock::get()?;
+
+        let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
+            program_id,
+            &deposit_stake_args.owner,
+            stake_pool_info.key,
+            &deposit_stake_args.base,
+        );
+
+        // Validate: DepositReceipt should be canonical PDA
+        if deposit_receipt_pda != *deposit_receipt_info.key {
+            return Err(StakeDepositInterceptorError::InvalidSeeds.into());
+        }
+
+        let pda_seeds = [
+            DEPOSIT_RECEIPT,
+            &deposit_stake_args.owner.to_bytes(),
+            &stake_pool_info.key.to_bytes(),
+            &deposit_stake_args.base.to_bytes(),
+            &[bump_seed],
+        ];
+        // Create and initialize the DepositReceipt account
+        create_pda_account(
+            payer_info,
+            &rent,
+            mem::size_of::<DepositReceipt>(),
+            program_id,
+            system_program_info,
+            deposit_receipt_info,
+            &pda_seeds,
+        )?;
+
+        let mut deposit_receipt =
+            try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
+
+        deposit_receipt.base = deposit_stake_args.base;
+        deposit_receipt.owner = deposit_stake_args.owner;
+        // convert time of i64 to u64 for storage.
+        deposit_receipt.deposit_time =
+            u64::from_le_bytes(clock.unix_timestamp.to_le_bytes()).into();
+        // TODO add LST amount by getting account diff
+        deposit_receipt.cool_down_period = deposit_stake_authority.cool_down_period;
+        deposit_receipt.initial_fee_rate = deposit_stake_authority.inital_fee_rate;
+        deposit_receipt.bump_seed = bump_seed;
+        borsh::to_writer(
+            &mut deposit_receipt_info.data.borrow_mut()[..],
+            &deposit_receipt,
+        )?;
+
         Ok(())
     }
 
@@ -292,8 +354,8 @@ impl Processor {
             StakeDepositInterceptorInstruction::UpdateStakePoolDepositStakeAuthority(args) => {
                 Self::process_update_deposit_stake_authority(program_id, accounts, args)?;
             }
-            StakeDepositInterceptorInstruction::DepositStake => {
-                Self::process_deposit_stake(program_id, accounts)?;
+            StakeDepositInterceptorInstruction::DepositStake(args) => {
+                Self::process_deposit_stake(program_id, accounts, args)?;
             }
             _ => {}
         }

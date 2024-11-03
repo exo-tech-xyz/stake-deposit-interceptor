@@ -26,6 +26,21 @@ pub struct UpdateStakePoolDepositStakeAuthorityArgs {
     pub initial_fee_rate: Option<u32>,
 }
 
+/// Arguments for DepositStake.
+/// 
+/// NOTE: we must pass the owner as a separate arg (or account) as 
+/// by the time the DepositStake instruction is processed, the
+/// authorized staker & withdrawer has become a PDA owned by this
+/// program and not the original authorized pubkey for the Stake Account.
+#[repr(C)]
+#[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
+pub struct DepositStakeArgs {
+    pub base: Pubkey,
+    /// The pubkey that will own the DepositReceipt and thus
+    /// be able to claim the minted LST.
+    pub owner: Pubkey,
+}
+
 /// Instructions supported by the StakeDepositInterceptor program.
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
@@ -52,7 +67,9 @@ pub enum StakeDepositInterceptorInstruction {
     ///   representing ownership into the pool. Inputs are converted to the
     ///   current ratio.
     ///
+    ///   0. `[w]` payer of the new account rent
     ///   0. `[]` stake pool program id
+    ///   0. `[w]` DepositReceipt to be created
     ///   0. `[w]` Stake pool
     ///   1. `[w]` Validator stake list storage account
     ///   2. `[s]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
@@ -72,7 +89,8 @@ pub enum StakeDepositInterceptorInstruction {
     ///   12. '[]' Sysvar stake history account
     ///   13. `[]` Pool token program id,
     ///   14. `[]` Stake program id,
-    DepositStake,
+    ///   14. `[]` System program id,
+    DepositStake(DepositStakeArgs),
     // TODO fix account numbering
     ///   Deposit some stake into the pool, with a specified slippage
     ///   constraint. The output is a "pool" token representing ownership
@@ -106,6 +124,7 @@ pub enum StakeDepositInterceptorInstruction {
 }
 
 pub const STAKE_POOL_DEPOSIT_STAKE_AUTHORITY: &[u8] = b"deposit_stake_authority";
+pub const DEPOSIT_RECEIPT: &[u8] = b"deposit_receipt";
 
 /// Derive the StakePoolDepositStakeAuthority pubkey for a given program
 pub fn derive_stake_pool_deposit_stake_authority(
@@ -114,6 +133,24 @@ pub fn derive_stake_pool_deposit_stake_authority(
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[STAKE_POOL_DEPOSIT_STAKE_AUTHORITY, &stake_pool.to_bytes()],
+        program_id,
+    )
+}
+
+/// Derive the DepositReceipt pubkey for a given program
+pub fn derive_stake_deposit_receipt(
+    program_id: &Pubkey,
+    owner: &Pubkey,
+    stake_pool: &Pubkey,
+    base: &Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            DEPOSIT_RECEIPT,
+            &owner.to_bytes(),
+            &stake_pool.to_bytes(),
+            &base.to_bytes(),
+        ],
         program_id,
     )
 }
@@ -199,6 +236,7 @@ pub fn create_update_deposit_stake_authority_instruction(
 
 fn deposit_stake_internal(
     program_id: &Pubkey,
+    payer: &Pubkey,
     stake_pool_program_id: &Pubkey,
     stake_pool: &Pubkey,
     validator_list_storage: &Pubkey,
@@ -213,16 +251,26 @@ fn deposit_stake_internal(
     referrer_pool_tokens_account: &Pubkey,
     pool_mint: &Pubkey,
     token_program_id: &Pubkey,
+    base: &Pubkey,
     minimum_pool_tokens_out: Option<u64>,
 ) -> Vec<Instruction> {
+    let (deposit_receipt_pubkey, _bump_seed) = derive_stake_deposit_receipt(
+        program_id,
+        deposit_stake_withdraw_authority,
+        stake_pool,
+        base,
+    );
     let mut instructions = vec![];
     let mut accounts = vec![
+        AccountMeta::new(*payer, true),
         AccountMeta::new_readonly(*stake_pool_program_id, false),
+        AccountMeta::new(deposit_receipt_pubkey, false),
         AccountMeta::new(*stake_pool, false),
         AccountMeta::new(*validator_list_storage, false),
         // This is our PDA that will signed the CPI
         AccountMeta::new_readonly(*stake_pool_deposit_authority, false),
     ];
+    // NOTE: Assumes the withdrawer and staker authorities are the same (i.e. `deposit_stake_withdraw_authority`).
     instructions.extend_from_slice(&[
         stake::instruction::authorize(
             deposit_stake_address,
@@ -253,6 +301,7 @@ fn deposit_stake_internal(
         AccountMeta::new_readonly(sysvar::stake_history::id(), false),
         AccountMeta::new_readonly(*token_program_id, false),
         AccountMeta::new_readonly(stake::program::id(), false),
+        AccountMeta::new_readonly(system_program::id(), false),
     ]);
     instructions.push(
         if let Some(minimum_pool_tokens_out) = minimum_pool_tokens_out {
@@ -267,10 +316,15 @@ fn deposit_stake_internal(
                 .unwrap(),
             }
         } else {
+            let args = DepositStakeArgs {
+                base: *base,
+                owner: *deposit_stake_withdraw_authority,
+            };
             Instruction {
                 program_id: *program_id,
                 accounts,
-                data: borsh::to_vec(&StakeDepositInterceptorInstruction::DepositStake).unwrap(),
+                data: borsh::to_vec(&StakeDepositInterceptorInstruction::DepositStake(args))
+                    .unwrap(),
             }
         },
     );
@@ -281,6 +335,7 @@ fn deposit_stake_internal(
 /// account owned by the user.
 pub fn create_deposit_stake_instruction(
     program_id: &Pubkey,
+    payer: &Pubkey,
     stake_pool_program_id: &Pubkey,
     stake_pool: &Pubkey,
     validator_list_storage: &Pubkey,
@@ -294,6 +349,7 @@ pub fn create_deposit_stake_instruction(
     referrer_pool_tokens_account: &Pubkey,
     pool_mint: &Pubkey,
     token_program_id: &Pubkey,
+    base: &Pubkey,
 ) -> Vec<Instruction> {
     // The StakePool's deposit authority is assumed to be the PDA owned by
     // the stake-deposit-interceptor program
@@ -301,6 +357,7 @@ pub fn create_deposit_stake_instruction(
         derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
     deposit_stake_internal(
         program_id,
+        payer,
         stake_pool_program_id,
         stake_pool,
         validator_list_storage,
@@ -315,6 +372,7 @@ pub fn create_deposit_stake_instruction(
         referrer_pool_tokens_account,
         pool_mint,
         token_program_id,
+        base,
         None,
     )
 }
