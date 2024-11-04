@@ -5,7 +5,6 @@ use solana_program::{
     stake, system_program, sysvar,
 };
 use spl_associated_token_account::get_associated_token_address;
-use spl_stake_pool::{find_deposit_authority_program_address, instruction::StakePoolInstruction};
 
 /// Initialize arguments for StakePoolDepositStakeAuthority
 #[repr(C)]
@@ -27,8 +26,8 @@ pub struct UpdateStakePoolDepositStakeAuthorityArgs {
 }
 
 /// Arguments for DepositStake.
-/// 
-/// NOTE: we must pass the owner as a separate arg (or account) as 
+///
+/// NOTE: we must pass the owner as a separate arg (or account) as
 /// by the time the DepositStake instruction is processed, the
 /// authorized staker & withdrawer has become a PDA owned by this
 /// program and not the original authorized pubkey for the Stake Account.
@@ -39,6 +38,23 @@ pub struct DepositStakeArgs {
     /// The pubkey that will own the DepositReceipt and thus
     /// be able to claim the minted LST.
     pub owner: Pubkey,
+}
+
+/// Arguments for DepositStakeWithSlippage.
+///
+/// NOTE: we must pass the owner as a separate arg (or account) as
+/// by the time the DepositStake instruction is processed, the
+/// authorized staker & withdrawer has become a PDA owned by this
+/// program and not the original authorized pubkey for the Stake Account.
+#[repr(C)]
+#[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
+pub struct DepositStakeWithSlippageArgs {
+    pub base: Pubkey,
+    /// The pubkey that will own the DepositReceipt and thus
+    /// be able to claim the minted LST.
+    pub owner: Pubkey,
+    /// Slippage amount as defined in SPL stake-pool program.
+    pub minimum_pool_tokens_out: u64,
 }
 
 /// Instructions supported by the StakeDepositInterceptor program.
@@ -116,10 +132,7 @@ pub enum StakeDepositInterceptorInstruction {
     ///   12. '[]' Sysvar stake history account
     ///   13. `[]` Pool token program id,
     ///   14. `[]` Stake program id,
-    DepositStakeWithSlippage {
-        /// Minimum amount of pool tokens that must be received
-        minimum_pool_tokens_out: u64,
-    },
+    DepositStakeWithSlippage(DepositStakeWithSlippageArgs),
     // TODO DepositStakeWithSlippage
 }
 
@@ -305,13 +318,16 @@ fn deposit_stake_internal(
     ]);
     instructions.push(
         if let Some(minimum_pool_tokens_out) = minimum_pool_tokens_out {
+            let args = DepositStakeWithSlippageArgs {
+                base: *base,
+                owner: *deposit_stake_withdraw_authority,
+                minimum_pool_tokens_out,
+            };
             Instruction {
                 program_id: *program_id,
                 accounts,
                 data: borsh::to_vec(
-                    &StakeDepositInterceptorInstruction::DepositStakeWithSlippage {
-                        minimum_pool_tokens_out,
-                    },
+                    &StakeDepositInterceptorInstruction::DepositStakeWithSlippage(args),
                 )
                 .unwrap(),
             }
@@ -376,3 +392,51 @@ pub fn create_deposit_stake_instruction(
         None,
     )
 }
+
+/// Creates instructions required to deposit into a stake pool, given a stake
+/// account owned by the user. StakePool program verifies the minimum tokens are minted.
+pub fn create_deposit_stake_with_slippage_nstruction(
+    program_id: &Pubkey,
+    payer: &Pubkey,
+    stake_pool_program_id: &Pubkey,
+    stake_pool: &Pubkey,
+    validator_list_storage: &Pubkey,
+    stake_pool_withdraw_authority: &Pubkey,
+    deposit_stake_address: &Pubkey,
+    deposit_stake_withdraw_authority: &Pubkey,
+    validator_stake_account: &Pubkey,
+    reserve_stake_account: &Pubkey,
+    pool_tokens_to: &Pubkey,
+    manager_fee_account: &Pubkey,
+    referrer_pool_tokens_account: &Pubkey,
+    pool_mint: &Pubkey,
+    token_program_id: &Pubkey,
+    base: &Pubkey,
+    minimum_pool_tokens_out: u64,
+) -> Vec<Instruction> {
+    // The StakePool's deposit authority is assumed to be the PDA owned by
+    // the stake-deposit-interceptor program
+    let (deposit_stake_authority_pubkey, _bump_seed) =
+        derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
+    deposit_stake_internal(
+        program_id,
+        payer,
+        stake_pool_program_id,
+        stake_pool,
+        validator_list_storage,
+        &deposit_stake_authority_pubkey,
+        stake_pool_withdraw_authority,
+        deposit_stake_address,
+        deposit_stake_withdraw_authority,
+        validator_stake_account,
+        reserve_stake_account,
+        pool_tokens_to,
+        manager_fee_account,
+        referrer_pool_tokens_account,
+        pool_mint,
+        token_program_id,
+        base,
+        Some(minimum_pool_tokens_out),
+    )
+}
+

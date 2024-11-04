@@ -237,6 +237,7 @@ impl Processor {
         program_id: &Pubkey,
         accounts: &[AccountInfo],
         deposit_stake_args: DepositStakeArgs,
+        minimum_pool_tokens_out: Option<u64>,
     ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let payer_info = next_account_info(account_info_iter)?;
@@ -302,6 +303,7 @@ impl Processor {
             stake_history_info,
             stake_program_info,
             deposit_stake_authority.bump_seed,
+            minimum_pool_tokens_out
         )?;
 
         let vault_token_account_after = Account::unpack(&pool_tokens_vault_info.data.borrow())?;
@@ -373,7 +375,19 @@ impl Processor {
                 Self::process_update_deposit_stake_authority(program_id, accounts, args)?;
             }
             StakeDepositInterceptorInstruction::DepositStake(args) => {
-                Self::process_deposit_stake(program_id, accounts, args)?;
+                Self::process_deposit_stake(program_id, accounts, args, None)?;
+            }
+            StakeDepositInterceptorInstruction::DepositStakeWithSlippage(args) => {
+                let deposit_stake_args = DepositStakeArgs {
+                    base: args.base,
+                    owner: args.owner,
+                };
+                Self::process_deposit_stake(
+                    program_id,
+                    accounts,
+                    deposit_stake_args,
+                    Some(args.minimum_pool_tokens_out),
+                )?;
             }
             _ => {}
         }
@@ -474,6 +488,7 @@ fn deposit_stake_cpi<'a>(
     sysvar_stake_history: &AccountInfo<'a>,
     stake_program_info: &AccountInfo<'a>,
     bump_seed: u8,
+    minimum_pool_tokens_out: Option<u64>,
 ) -> Result<(), ProgramError> {
     let account_infos = vec![
         stake_pool_info.clone(),
@@ -492,7 +507,6 @@ fn deposit_stake_cpi<'a>(
         token_program_id_info.clone(),
         stake_program_info.clone(),
     ];
-    // TODO remove duplicated lists
     let accounts = vec![
         AccountMeta::new(*stake_pool_info.key, false),
         AccountMeta::new(*validator_list_storage_info.key, false),
@@ -511,11 +525,18 @@ fn deposit_stake_cpi<'a>(
         AccountMeta::new_readonly(*stake_program_info.key, false),
     ];
 
+    let data;
+    if let Some(minimum_pool_tokens_out) = minimum_pool_tokens_out {
+        data = borsh::to_vec(&spl_stake_pool::instruction::StakePoolInstruction::DepositStakeWithSlippage { minimum_pool_tokens_out })
+        .unwrap()
+    } else {
+        data = borsh::to_vec(&spl_stake_pool::instruction::StakePoolInstruction::DepositStake)
+        .unwrap()
+    }
     let ix = Instruction {
         program_id: *program_info.key,
         accounts,
-        data: borsh::to_vec(&spl_stake_pool::instruction::StakePoolInstruction::DepositStake)
-            .unwrap(),
+        data,
     };
     let signers_seeds = [
         STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
