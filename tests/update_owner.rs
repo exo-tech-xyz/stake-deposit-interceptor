@@ -2,26 +2,20 @@ mod helpers;
 
 use helpers::{
     airdrop_lamports, create_stake_account, create_stake_deposit_authority, create_token_account,
-    create_validator_and_add_to_pool, delegate_stake_account, get_account,
-    get_account_data_deserialized, program_test_context_with_stake_pool_state,
-    stake_pool_update_all, update_stake_deposit_authority, StakePoolAccounts,
-    ValidatorStakeAccount,
+    create_validator_and_add_to_pool, delegate_stake_account, get_account_data_deserialized,
+    program_test_context_with_stake_pool_state, stake_pool_update_all,
+    update_stake_deposit_authority, StakePoolAccounts, ValidatorStakeAccount,
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     borsh1::try_from_slice_unchecked,
-    instruction::InstructionError,
     native_token::LAMPORTS_PER_SOL,
-    program_pack::Pack,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
     stake::{self},
-    transaction::{Transaction, TransactionError},
-    transport::TransportError,
+    transaction::Transaction,
 };
-use spl_pod::primitives::PodU64;
-use spl_stake_pool::error::StakePoolError;
 use stake_deposit_interceptor::{
     instruction::{derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority},
     state::{DepositReceipt, StakePoolDepositStakeAuthority},
@@ -195,13 +189,12 @@ async fn success() {
         _total_staked_amount,
     ) = setup().await;
 
-    let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
+    let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
         &depositor.pubkey(),
         &stake_pool_accounts.stake_pool,
         &base,
     );
-    println!("TESTING bump {:?} ", bump_seed);
 
     let new_owner = Pubkey::new_unique();
 
@@ -229,7 +222,6 @@ async fn success() {
     .await;
     assert_eq!(deposit_receipt.owner, new_owner);
 }
-
 
 // TODO test fail if owner does not sign
 // TODO test fail if signed owner does not match
