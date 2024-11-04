@@ -30,10 +30,7 @@ pub struct StakePoolDepositStakeAuthority {
 impl StakePoolDepositStakeAuthority {
     /// Check whether the StakePoolDepositStakeAuthority account has been initialized
     pub fn is_initialized(&self) -> bool {
-        if self.authority != Pubkey::default() {
-            return true;
-        }
-        return false;
+        self.authority != Pubkey::default()
     }
 }
 
