@@ -78,62 +78,70 @@ pub enum StakeDepositInterceptorInstruction {
     ///   0. `[w]` StakePoolDepositStakeAuthority PDA to be updated
     ///   1. `[s]` Authority
     UpdateStakePoolDepositStakeAuthority(UpdateStakePoolDepositStakeAuthorityArgs),
-    // TODO fix all the numbering
-    ///   Deposit some stake into the pool. The output is a "pool" token
-    ///   representing ownership into the pool. Inputs are converted to the
-    ///   current ratio.
+    ///   Deposit some stake into the pool. The "pool" token minted is held by the DepositReceipt's
+    ///   Vault token Account rather than a token Account designated by the depositor.
+    ///   Inputs are converted to the current ratio.
     ///
     ///   0. `[w]` payer of the new account rent
-    ///   0. `[]` stake pool program id
-    ///   0. `[w]` DepositReceipt to be created
-    ///   0. `[w]` Stake pool
-    ///   1. `[w]` Validator stake list storage account
-    ///   2. `[s]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
-    ///   3. `[]` Stake pool withdraw authority
-    ///   4. `[w]` Stake account to join the pool (withdraw authority for the
+    ///   1. `[]` stake pool program id
+    ///   2. `[w]` DepositReceipt to be created
+    ///   3. `[w]` Stake pool
+    ///   4. `[w]` Validator stake list storage account
+    ///   5. `[s]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
+    ///   6. `[]` Stake pool withdraw authority
+    ///   7. `[w]` Stake account to join the pool (withdraw authority for the
     ///      stake account should be first set to the stake pool deposit
     ///      authority)
-    ///   5. `[w]` Validator stake account for the stake account to be merged
+    ///   8. `[w]` Validator stake account for the stake account to be merged
     ///      with
-    ///   6. `[w]` Reserve stake account, to withdraw rent exempt reserve
-    ///   7. `[w]` User account to receive pool tokens
-    ///   8. `[w]` Account to receive pool fee tokens
-    ///   9. `[w]` Account to receive a portion of pool fee tokens as referral
+    ///   9. `[w]` Reserve stake account, to withdraw rent exempt reserve
+    ///   10. `[w]` Vault account to receive pool tokens
+    ///   11. `[w]` Account to receive pool fee tokens
+    ///   12. `[w]` Account to receive a portion of pool fee tokens as referral
     ///      fees
-    ///   10. `[w]` Pool token mint account
-    ///   11. '[]' Sysvar clock account
-    ///   12. '[]' Sysvar stake history account
-    ///   13. `[]` Pool token program id,
-    ///   14. `[]` Stake program id,
-    ///   14. `[]` System program id,
+    ///   13. `[w]` Pool token mint account
+    ///   14. '[]' Sysvar clock account
+    ///   15. '[]' Sysvar stake history account
+    ///   16. `[]` Pool token program id,
+    ///   17. `[]` Stake program id,
+    ///   18. `[]` System program id,
     DepositStake(DepositStakeArgs),
-    // TODO fix account numbering
     ///   Deposit some stake into the pool, with a specified slippage
-    ///   constraint. The output is a "pool" token representing ownership
-    ///   into the pool. Inputs are converted at the current ratio.
+    ///   constraint. The "pool" token minted is held by the DepositReceipt's
+    ///   Vault token Account rather than a token Account designated by the depositor.
+    ///   Inputs are converted to the current ratio.
     ///
-    ///   0. `[]` stake pool program id
-    ///   0. `[w]` Stake pool
-    ///   1. `[w]` Validator stake list storage account
-    ///   2. `[s]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
-    ///   3. `[]` Stake pool withdraw authority
-    ///   4. `[w]` Stake account to join the pool (withdraw authority for the
+    ///   0. `[w]` payer of the new account rent
+    ///   1. `[]` stake pool program id
+    ///   2. `[w]` DepositReceipt to be created
+    ///   3. `[w]` Stake pool
+    ///   4. `[w]` Validator stake list storage account
+    ///   5. `[s]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
+    ///   6. `[]` Stake pool withdraw authority
+    ///   7. `[w]` Stake account to join the pool (withdraw authority for the
     ///      stake account should be first set to the stake pool deposit
     ///      authority)
-    ///   5. `[w]` Validator stake account for the stake account to be merged
+    ///   8. `[w]` Validator stake account for the stake account to be merged
     ///      with
-    ///   6. `[w]` Reserve stake account, to withdraw rent exempt reserve
-    ///   7. `[w]` User account to receive pool tokens
-    ///   8. `[w]` Account to receive pool fee tokens
-    ///   9. `[w]` Account to receive a portion of pool fee tokens as referral
+    ///   9. `[w]` Reserve stake account, to withdraw rent exempt reserve
+    ///   10. `[w]` Vault account to receive pool tokens
+    ///   11. `[w]` Account to receive pool fee tokens
+    ///   12. `[w]` Account to receive a portion of pool fee tokens as referral
     ///      fees
-    ///   10. `[w]` Pool token mint account
-    ///   11. '[]' Sysvar clock account
-    ///   12. '[]' Sysvar stake history account
-    ///   13. `[]` Pool token program id,
-    ///   14. `[]` Stake program id,
+    ///   13. `[w]` Pool token mint account
+    ///   14. '[]' Sysvar clock account
+    ///   15. '[]' Sysvar stake history account
+    ///   16. `[]` Pool token program id,
+    ///   17. `[]` Stake program id,
+    ///   18. `[]` System program id,
     DepositStakeWithSlippage(DepositStakeWithSlippageArgs),
-    // TODO DepositStakeWithSlippage
+    ///   Update the `owner` of the DepositReceipt so the new owner
+    ///   has the authority to claim the "pool" tokens.
+    ///
+    ///   0. `[w]` DepositReceipt PDA
+    ///   1. `[s]` current owner of the DepositReceipt
+    ///   2. `[]` new owner for the DepositReceipt
+    ChangeDepositReceiptOwner,
 }
 
 pub const STAKE_POOL_DEPOSIT_STAKE_AUTHORITY: &[u8] = b"deposit_stake_authority";
@@ -440,3 +448,22 @@ pub fn create_deposit_stake_with_slippage_nstruction(
     )
 }
 
+/// Creates the Instruction to change the current owner of the DepositReceipt.
+pub fn create_change_deposit_receipt_owner(
+    program_id: &Pubkey,
+    deposit_receipt_address: &Pubkey,
+    owner: &Pubkey,
+    new_owner: &Pubkey,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(*deposit_receipt_address, false),
+        AccountMeta::new_readonly(*owner, true),
+        AccountMeta::new_readonly(*new_owner, false),
+    ];
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: borsh::to_vec(&StakeDepositInterceptorInstruction::ChangeDepositReceiptOwner)
+            .unwrap(),
+    }
+}

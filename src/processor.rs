@@ -233,6 +233,8 @@ impl Processor {
         Ok(())
     }
 
+    /// Invoke the provided stake-pool program's DepositStake (or DepositStakeWithSlippage), but use
+    /// the vault account from the `StakePoolDepositStakeAuthority` to custody the "pool" tokens.
     pub fn process_deposit_stake(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -303,7 +305,7 @@ impl Processor {
             stake_history_info,
             stake_program_info,
             deposit_stake_authority.bump_seed,
-            minimum_pool_tokens_out
+            minimum_pool_tokens_out,
         )?;
 
         let vault_token_account_after = Account::unpack(&pool_tokens_vault_info.data.borrow())?;
@@ -350,6 +352,7 @@ impl Processor {
 
         deposit_receipt.base = deposit_stake_args.base;
         deposit_receipt.owner = deposit_stake_args.owner;
+        deposit_receipt.stake_pool = *stake_pool_info.key;
         // convert time of i64 to u64 for storage.
         deposit_receipt.deposit_time =
             u64::from_le_bytes(clock.unix_timestamp.to_le_bytes()).into();
@@ -357,6 +360,48 @@ impl Processor {
         deposit_receipt.cool_down_period = deposit_stake_authority.cool_down_period;
         deposit_receipt.initial_fee_rate = deposit_stake_authority.inital_fee_rate;
         deposit_receipt.bump_seed = bump_seed;
+        borsh::to_writer(
+            &mut deposit_receipt_info.data.borrow_mut()[..],
+            &deposit_receipt,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn process_change_deposit_receipt_owner(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let deposit_receipt_info = next_account_info(account_info_iter)?;
+        let owner_info = next_account_info(account_info_iter)?;
+        let new_owner_info = next_account_info(account_info_iter)?;
+
+        // Validate: owner must be a signer
+        if !owner_info.is_signer {
+            return Err(StakeDepositInterceptorError::SignatureMissing.into());
+        }
+
+        let mut deposit_receipt =
+            try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
+
+        // Validate: DepositReceipt address must match expected PDA
+        check_deposit_receipt_address(
+            program_id,
+            deposit_receipt_info.key,
+            &deposit_receipt.owner,
+            &deposit_receipt.stake_pool,
+            &deposit_receipt.base,
+            deposit_receipt.bump_seed,
+        )?;
+
+        // Validate: owner should match that of the DepositReceipt
+        if owner_info.key != &deposit_receipt.owner {
+            return Err(StakeDepositInterceptorError::InvalidDepositReceiptOwner.into());
+        }
+
+        // Update owner to new_owner
+        deposit_receipt.owner = *new_owner_info.key;
         borsh::to_writer(
             &mut deposit_receipt_info.data.borrow_mut()[..],
             &deposit_receipt,
@@ -389,7 +434,9 @@ impl Processor {
                     Some(args.minimum_pool_tokens_out),
                 )?;
             }
-            _ => {}
+            StakeDepositInterceptorInstruction::ChangeDepositReceiptOwner => {
+                Self::process_change_deposit_receipt_owner(program_id, accounts)?;
+            }
         }
         Ok(())
     }
@@ -527,11 +574,15 @@ fn deposit_stake_cpi<'a>(
 
     let data;
     if let Some(minimum_pool_tokens_out) = minimum_pool_tokens_out {
-        data = borsh::to_vec(&spl_stake_pool::instruction::StakePoolInstruction::DepositStakeWithSlippage { minimum_pool_tokens_out })
+        data = borsh::to_vec(
+            &spl_stake_pool::instruction::StakePoolInstruction::DepositStakeWithSlippage {
+                minimum_pool_tokens_out,
+            },
+        )
         .unwrap()
     } else {
-        data = borsh::to_vec(&spl_stake_pool::instruction::StakePoolInstruction::DepositStake)
-        .unwrap()
+        data =
+            borsh::to_vec(&spl_stake_pool::instruction::StakePoolInstruction::DepositStake).unwrap()
     }
     let ix = Instruction {
         program_id: *program_info.key,
@@ -564,6 +615,30 @@ pub fn check_deposit_stake_authority_address(
     if address != *deposit_stake_authority {
         return Err(StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority.into());
     }
+    Ok(())
+}
 
+/// Check the validity of the supplied DepositReceipt given the relevant seeds.
+pub fn check_deposit_receipt_address(
+    program_id: &Pubkey,
+    deposit_receipt: &Pubkey,
+    owner: &Pubkey,
+    stake_pool: &Pubkey,
+    base: &Pubkey,
+    bump_seed: u8,
+) -> Result<(), ProgramError> {
+    let address = Pubkey::create_program_address(
+        &[
+            DEPOSIT_RECEIPT,
+            &owner.to_bytes(),
+            &stake_pool.to_bytes(),
+            &base.to_bytes(),
+            &[bump_seed],
+        ],
+        program_id,
+    )?;
+    if address != *deposit_receipt {
+        return Err(StakeDepositInterceptorError::InvalidDepositReceipt.into());
+    }
     Ok(())
 }

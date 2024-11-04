@@ -29,4 +29,10 @@ pub enum StakeDepositInterceptorError {
     /// 8 : Invalid Token program account   
     #[error("Token program is invalid")]
     InvalidTokenProgram,
+    /// 9 : Invalid DepositReceipt account   
+    #[error("DepositReceipt key is invalid")]
+    InvalidDepositReceipt,
+    /// 10 : Invalid DepositReceipt owner account   
+    #[error("DepositReceipt owner is invalid")]
+    InvalidDepositReceiptOwner,
 }

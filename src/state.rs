@@ -42,6 +42,8 @@ pub struct DepositReceipt {
 	pub base: Pubkey,
 	/// Owner of the Deposit receipt who must sign to claim
 	pub owner: Pubkey,
+    /// StakePool the DepositReceipt originated from
+	pub stake_pool: Pubkey,
 	/// Timestamp of original deposit invocation
 	pub deposit_time: PodU64,
 	/// Total amount of claimable lst that was minted during Deposit
