@@ -29,7 +29,10 @@ use crate::{
         UpdateStakePoolDepositStakeAuthorityArgs, DEPOSIT_RECEIPT,
         STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
     },
-    state::{DepositReceipt, StakePoolDepositStakeAuthority},
+    state::{
+        DepositReceipt, StakePoolDepositStakeAuthority, DEPOSIT_AUTHORITY_DISCRIMINATOR,
+        DEPOSIT_RECEIPT_DISCRIMINATOR,
+    },
 };
 
 pub struct Processor;
@@ -153,6 +156,8 @@ impl Processor {
         }
 
         // Set StakePoolDepositStakeAuthority values
+        deposit_stake_authority.discriminator =
+            PodU64::from(u64::from(DEPOSIT_AUTHORITY_DISCRIMINATOR));
         deposit_stake_authority.stake_pool = *stake_pool_info.key;
         deposit_stake_authority.pool_mint = stake_pool.pool_mint;
         deposit_stake_authority.vault = vault_ata;
@@ -349,6 +354,7 @@ impl Processor {
         let mut deposit_receipt =
             try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
 
+        deposit_receipt.discriminator = PodU64::from(u64::from(DEPOSIT_RECEIPT_DISCRIMINATOR));
         deposit_receipt.base = deposit_stake_args.base;
         deposit_receipt.owner = deposit_stake_args.owner;
         deposit_receipt.stake_pool = *stake_pool_info.key;

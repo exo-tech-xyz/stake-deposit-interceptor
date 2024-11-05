@@ -3,10 +3,16 @@ use bytemuck::{Pod, Zeroable};
 use solana_program::pubkey::Pubkey;
 use spl_pod::primitives::{PodU32, PodU64};
 
+pub const DEPOSIT_AUTHORITY_DISCRIMINATOR: u8 = 1;
+pub const DEPOSIT_RECEIPT_DISCRIMINATOR: u8 = 2;
+
+
 /// Variables to construct linearly decaying fees over some period of time.
 #[repr(C)]
 #[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug, PartialEq, Pod, Zeroable)]
 pub struct StakePoolDepositStakeAuthority {
+    /// Account discriminator
+    pub discriminator: PodU64,
     /// Corresponding stake pool where this PDA is the `deposit_stake_authority`
     pub stake_pool: Pubkey,
     /// Mint of the LST from the StakePool
@@ -38,6 +44,8 @@ impl StakePoolDepositStakeAuthority {
 #[repr(C)]
 #[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug, PartialEq, Pod, Zeroable)]
 pub struct DepositReceipt {
+    /// Account discriminator
+    pub discriminator: PodU64,
     /// A generated seed for the PDA of this receipt
     pub base: Pubkey,
     /// Owner of the Deposit receipt who must sign to claim
@@ -89,6 +97,7 @@ mod tests {
     #[test]
     fn test_calculate_fee_amount() {
         let mut deposit_receipt = DepositReceipt {
+            discriminator: PodU64::from(u64::from(DEPOSIT_RECEIPT_DISCRIMINATOR)),
             base: Pubkey::new_unique(),
             owner: Pubkey::new_unique(),
             stake_pool: Pubkey::new_unique(),

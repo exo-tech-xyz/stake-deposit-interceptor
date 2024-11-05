@@ -24,7 +24,7 @@ use spl_pod::primitives::PodU64;
 use spl_stake_pool::error::StakePoolError;
 use stake_deposit_interceptor::{
     instruction::{derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority},
-    state::{DepositReceipt, StakePoolDepositStakeAuthority},
+    state::{DepositReceipt, StakePoolDepositStakeAuthority, DEPOSIT_RECEIPT_DISCRIMINATOR},
 };
 
 async fn setup() -> (
@@ -227,6 +227,10 @@ async fn test_deposit_stake() {
         &deposit_receipt_pda,
     )
     .await;
+    assert_eq!(
+        u64::from(deposit_receipt.discriminator),
+        u64::from(DEPOSIT_RECEIPT_DISCRIMINATOR)
+    );
     assert_eq!(deposit_receipt.owner, depositor.pubkey());
     assert_eq!(deposit_receipt.base, base);
     assert_eq!(deposit_receipt.stake_pool, stake_pool_accounts.stake_pool);
