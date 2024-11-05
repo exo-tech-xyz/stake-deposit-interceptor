@@ -3,6 +3,7 @@ use solana_program::declare_id;
 pub mod error;
 pub mod instruction;
 pub mod processor;
+pub mod macros;
 pub mod state;
 
 #[cfg(not(feature = "no-entrypoint"))]

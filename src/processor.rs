@@ -21,6 +21,7 @@ use spl_pod::primitives::{PodU32, PodU64};
 use spl_token::state::Account;
 
 use crate::{
+    deposit_receipt_signer_seeds, deposit_stake_authority_signer_seeds,
     error::StakeDepositInterceptorError,
     instruction::{
         derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority, DepositStakeArgs,
@@ -198,8 +199,7 @@ impl Processor {
         check_deposit_stake_authority_address(
             program_id,
             deposit_stake_authority_info.key,
-            &deposit_stake_authority.stake_pool,
-            deposit_stake_authority.bump_seed,
+            &deposit_stake_authority,
         )?;
 
         // Validate: authority matches
@@ -275,8 +275,7 @@ impl Processor {
         check_deposit_stake_authority_address(
             program_id,
             deposit_stake_authority_info.key,
-            &deposit_stake_authority.stake_pool,
-            deposit_stake_authority.bump_seed,
+            &deposit_stake_authority,
         )?;
         // Validate Vault token account to receive pool tokens is coorect.
         if pool_tokens_vault_info.key != &deposit_stake_authority.vault {
@@ -304,7 +303,7 @@ impl Processor {
             clock_info,
             stake_history_info,
             stake_program_info,
-            deposit_stake_authority.bump_seed,
+            &deposit_stake_authority,
             minimum_pool_tokens_out,
         )?;
 
@@ -353,10 +352,8 @@ impl Processor {
         deposit_receipt.base = deposit_stake_args.base;
         deposit_receipt.owner = deposit_stake_args.owner;
         deposit_receipt.stake_pool = *stake_pool_info.key;
-        // convert time of i64 to u64 for storage.
-        deposit_receipt.deposit_time =
-            u64::from_le_bytes(clock.unix_timestamp.to_le_bytes()).into();
-        deposit_receipt.lst_amount = PodU64::from(pool_tokens_minted);
+        deposit_receipt.deposit_time = clock.unix_timestamp.unsigned_abs().into();
+        deposit_receipt.lst_amount = pool_tokens_minted.into();
         deposit_receipt.cool_down_period = deposit_stake_authority.cool_down_period;
         deposit_receipt.initial_fee_rate = deposit_stake_authority.inital_fee_rate;
         deposit_receipt.bump_seed = bump_seed;
@@ -386,14 +383,7 @@ impl Processor {
             try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
 
         // Validate: DepositReceipt address must match expected PDA
-        check_deposit_receipt_address(
-            program_id,
-            deposit_receipt_info.key,
-            &deposit_receipt.owner,
-            &deposit_receipt.stake_pool,
-            &deposit_receipt.base,
-            deposit_receipt.bump_seed,
-        )?;
+        check_deposit_receipt_address(program_id, deposit_receipt_info.key, &deposit_receipt)?;
 
         // Validate: owner should match that of the DepositReceipt
         if owner_info.key != &deposit_receipt.owner {
@@ -534,7 +524,7 @@ fn deposit_stake_cpi<'a>(
     sysvar_clock_info: &AccountInfo<'a>,
     sysvar_stake_history: &AccountInfo<'a>,
     stake_program_info: &AccountInfo<'a>,
-    bump_seed: u8,
+    deposit_stake_authority: &StakePoolDepositStakeAuthority,
     minimum_pool_tokens_out: Option<u64>,
 ) -> Result<(), ProgramError> {
     let account_infos = vec![
@@ -589,30 +579,26 @@ fn deposit_stake_cpi<'a>(
         accounts,
         data,
     };
-    let signers_seeds = [
-        STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
-        &stake_pool_info.key.to_bytes(),
-        &[bump_seed],
-    ];
-    invoke_signed(&ix, &account_infos, &[&signers_seeds])
+    invoke_signed(
+        &ix,
+        &account_infos,
+        &[deposit_stake_authority_signer_seeds!(
+            deposit_stake_authority
+        )],
+    )
 }
 
 /// Check the validity of the supplied deposit_stake_authority given the relevant seeds.
 pub fn check_deposit_stake_authority_address(
     program_id: &Pubkey,
-    deposit_stake_authority: &Pubkey,
-    stake_pool: &Pubkey,
-    bump_seed: u8,
+    deposit_stake_authority_address: &Pubkey,
+    deposit_stake_authority: &StakePoolDepositStakeAuthority,
 ) -> Result<(), ProgramError> {
     let address = Pubkey::create_program_address(
-        &[
-            STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
-            &stake_pool.to_bytes(),
-            &[bump_seed],
-        ],
+        deposit_stake_authority_signer_seeds!(deposit_stake_authority),
         program_id,
     )?;
-    if address != *deposit_stake_authority {
+    if address != *deposit_stake_authority_address {
         return Err(StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority.into());
     }
     Ok(())
@@ -621,23 +607,12 @@ pub fn check_deposit_stake_authority_address(
 /// Check the validity of the supplied DepositReceipt given the relevant seeds.
 pub fn check_deposit_receipt_address(
     program_id: &Pubkey,
-    deposit_receipt: &Pubkey,
-    owner: &Pubkey,
-    stake_pool: &Pubkey,
-    base: &Pubkey,
-    bump_seed: u8,
+    deposit_receipt_address: &Pubkey,
+    deposit_receipt: &DepositReceipt,
 ) -> Result<(), ProgramError> {
-    let address = Pubkey::create_program_address(
-        &[
-            DEPOSIT_RECEIPT,
-            &owner.to_bytes(),
-            &stake_pool.to_bytes(),
-            &base.to_bytes(),
-            &[bump_seed],
-        ],
-        program_id,
-    )?;
-    if address != *deposit_receipt {
+    let address =
+        Pubkey::create_program_address(deposit_receipt_signer_seeds!(deposit_receipt), program_id)?;
+    if address != *deposit_receipt_address {
         return Err(StakeDepositInterceptorError::InvalidDepositReceipt.into());
     }
     Ok(())
