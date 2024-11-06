@@ -10,18 +10,16 @@ use helpers::{
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     borsh1::try_from_slice_unchecked,
-    instruction::InstructionError,
     native_token::LAMPORTS_PER_SOL,
-    program_pack::Pack,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
     stake::{self},
-    transaction::{Transaction, TransactionError},
-    transport::TransportError,
+    transaction::Transaction,
 };
-use spl_pod::primitives::PodU64;
-use spl_stake_pool::error::StakePoolError;
+use spl_associated_token_account::{
+    get_associated_token_address, instruction::create_associated_token_account,
+};
 use stake_deposit_interceptor::{
     instruction::{derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority},
     state::{DepositReceipt, StakePoolDepositStakeAuthority},
@@ -37,6 +35,8 @@ async fn setup() -> (
     Pubkey,
     Pubkey,
     u64,
+    Pubkey,
+    Keypair,
 ) {
     let (mut ctx, stake_pool_accounts) = program_test_context_with_stake_pool_state().await;
     let rent = ctx.banks_client.get_rent().await.unwrap();
@@ -66,13 +66,15 @@ async fn setup() -> (
     let validator_stake_accounts =
         create_validator_and_add_to_pool(&mut ctx, &stake_pool_accounts).await;
 
+    let fee_wallet = Keypair::new();
+
     let authority = Keypair::new();
     create_stake_deposit_authority(
         &mut ctx,
         &stake_pool_accounts.stake_pool,
         &stake_pool.pool_mint,
         &authority,
-        None,
+        Some(&fee_wallet.pubkey()),
     )
     .await;
 
@@ -99,7 +101,7 @@ async fn setup() -> (
     .await;
 
     // Create a TokenAccount for the "Depositor" of the StakePool's `pool_mint`.
-    let _depositor_lst_account = create_token_account(
+    let depositor_pool_token_account = create_token_account(
         &mut ctx,
         &depositor.pubkey(),
         &stake_pool_accounts.pool_mint,
@@ -141,39 +143,6 @@ async fn setup() -> (
 
     // Generate a random Pubkey as seed for DepositReceipt PDA.
     let base = Pubkey::new_unique();
-    (
-        ctx,
-        stake_pool_accounts,
-        stake_pool,
-        validator_stake_accounts,
-        deposit_stake_authority,
-        depositor,
-        depositor_stake_account,
-        base,
-        total_staked_amount,
-    )
-}
-
-#[tokio::test]
-async fn test_deposit_stake() {
-    let (
-        mut ctx,
-        stake_pool_accounts,
-        stake_pool,
-        validator_stake_accounts,
-        deposit_stake_authority,
-        depositor,
-        depositor_stake_account,
-        base,
-        total_staked_amount,
-    ) = setup().await;
-
-    let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
-        &stake_deposit_interceptor::id(),
-        &stake_pool_accounts.stake_pool,
-    );
-
-    // Actually test DepositStake
     let deposit_stake_instructions =
         stake_deposit_interceptor::instruction::create_deposit_stake_instruction(
             &stake_deposit_interceptor::id(),
@@ -202,54 +171,23 @@ async fn test_deposit_stake() {
     );
 
     ctx.banks_client.process_transaction(tx).await.unwrap();
-
-    let vault_account = get_account(&mut ctx.banks_client, &deposit_stake_authority.vault).await;
-    let vault = spl_token::state::Account::unpack(&vault_account.data).unwrap();
-
-    let pool_tokens_amount = spl_stake_pool::state::StakePool::calc_pool_tokens_for_deposit(
-        &stake_pool,
+    (
+        ctx,
+        stake_pool_accounts,
+        stake_pool,
+        validator_stake_accounts,
+        deposit_stake_authority,
+        depositor,
+        depositor_stake_account,
+        base,
         total_staked_amount,
+        depositor_pool_token_account,
+        fee_wallet,
     )
-    .unwrap();
-
-    // assert LST was transfer to the vault
-    assert_eq!(vault.amount, pool_tokens_amount);
-
-    // Assert DepositReceipt has correct data.
-    let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
-        &stake_deposit_interceptor::id(),
-        &depositor.pubkey(),
-        &stake_pool_accounts.stake_pool,
-        &base,
-    );
-    let deposit_receipt = get_account_data_deserialized::<DepositReceipt>(
-        &mut ctx.banks_client,
-        &deposit_receipt_pda,
-    )
-    .await;
-    assert_eq!(deposit_receipt.owner, depositor.pubkey());
-    assert_eq!(deposit_receipt.base, base);
-    assert_eq!(deposit_receipt.stake_pool, stake_pool_accounts.stake_pool);
-    assert_eq!(
-        deposit_receipt.stake_pool_deposit_stake_authority,
-        deposit_stake_authority_pubkey
-    );
-    assert_eq!(deposit_receipt.bump_seed, bump_seed);
-    assert_eq!(deposit_receipt.lst_amount, PodU64::from(pool_tokens_amount));
-    assert_eq!(
-        deposit_receipt.cool_down_period,
-        deposit_stake_authority.cool_down_period
-    );
-    assert_eq!(
-        deposit_receipt.initial_fee_rate,
-        deposit_stake_authority.inital_fee_rate
-    );
-    let deposit_time: u64 = deposit_receipt.deposit_time.into();
-    assert!(deposit_time > 0);
 }
 
 #[tokio::test]
-async fn success_error_with_slippage() {
+async fn claim_pool_tokens_success() {
     let (
         mut ctx,
         stake_pool_accounts,
@@ -260,89 +198,72 @@ async fn success_error_with_slippage() {
         depositor_stake_account,
         base,
         total_staked_amount,
+        depositor_pool_token_account,
+        fee_wallet,
     ) = setup().await;
 
-    let pool_tokens_amount = spl_stake_pool::state::StakePool::calc_pool_tokens_for_deposit(
-        &stake_pool,
-        total_staked_amount,
-    )
-    .unwrap();
-
-    let deposit_stake_with_slippage_instructions =
-        stake_deposit_interceptor::instruction::create_deposit_stake_with_slippage_nstruction(
-            &stake_deposit_interceptor::id(),
-            &depositor.pubkey(),
-            &spl_stake_pool::id(),
-            &stake_pool_accounts.stake_pool,
-            &stake_pool_accounts.validator_list,
-            &stake_pool_accounts.withdraw_authority,
-            &depositor_stake_account,
-            &depositor.pubkey(),
-            &validator_stake_accounts.stake_account,
-            &stake_pool_accounts.reserve_stake_account,
-            &deposit_stake_authority.vault,
-            &stake_pool_accounts.pool_fee_account,
-            &stake_pool_accounts.pool_fee_account,
-            &stake_pool_accounts.pool_mint,
-            &spl_token::id(),
-            &base,
-            pool_tokens_amount + 1,
-        );
-
-    let tx = Transaction::new_signed_with_payer(
-        &deposit_stake_with_slippage_instructions,
-        Some(&depositor.pubkey()),
-        &[&depositor],
-        ctx.last_blockhash,
+    let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
+        &stake_deposit_interceptor::id(),
+        &stake_pool_accounts.stake_pool,
+    );
+    let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
+        &stake_deposit_interceptor::id(),
+        &depositor.pubkey(),
+        &stake_pool_accounts.stake_pool,
+        &base,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
+    let deposit_receipt = get_account_data_deserialized::<DepositReceipt>(
+        &mut ctx.banks_client,
+        &deposit_receipt_pda,
+    )
+    .await;
 
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(StakePoolError::ExceededSlippage as u32)
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    let fee_token_account =
+        get_associated_token_address(&fee_wallet.pubkey(), &stake_pool_accounts.pool_mint);
 
-    let deposit_stake_with_slippage_instructions =
-        stake_deposit_interceptor::instruction::create_deposit_stake_with_slippage_nstruction(
-            &stake_deposit_interceptor::id(),
-            &depositor.pubkey(),
-            &spl_stake_pool::id(),
-            &stake_pool_accounts.stake_pool,
-            &stake_pool_accounts.validator_list,
-            &stake_pool_accounts.withdraw_authority,
-            &depositor_stake_account,
-            &depositor.pubkey(),
-            &validator_stake_accounts.stake_account,
-            &stake_pool_accounts.reserve_stake_account,
-            &deposit_stake_authority.vault,
-            &stake_pool_accounts.pool_fee_account,
-            &stake_pool_accounts.pool_fee_account,
-            &stake_pool_accounts.pool_mint,
-            &spl_token::id(),
-            &base,
-            pool_tokens_amount,
-        );
+    let create_fee_token_account_ix = create_associated_token_account(
+        &depositor.pubkey(),
+        &fee_wallet.pubkey(),
+        &stake_pool_accounts.pool_mint,
+        &spl_token::id(),
+    );
+
+    let ix = stake_deposit_interceptor::instruction::create_claim_pool_tokens_instruction(
+        &stake_deposit_interceptor::id(),
+        &deposit_receipt_pda,
+        &depositor.pubkey(),
+        &deposit_stake_authority.vault,
+        &depositor_pool_token_account,
+        &fee_token_account,
+        &deposit_stake_authority_pubkey,
+        &stake_pool.pool_mint,
+        &spl_token::id(),
+    );
 
     let tx = Transaction::new_signed_with_payer(
-        &deposit_stake_with_slippage_instructions,
+        &[create_fee_token_account_ix, ix],
         Some(&depositor.pubkey()),
         &[&depositor],
         ctx.last_blockhash,
     );
 
     ctx.banks_client.process_transaction(tx).await.unwrap();
+
+    // TODO asset Destination token account should have received pool tokens
+
+    // TODO assert Fees should have been paid
+
+    // DepositReceipt account should have been closed
+    let deposit_receipt_account = ctx
+        .banks_client
+        .get_account(deposit_receipt_pda)
+        .await
+        .unwrap();
+    assert!(deposit_receipt_account.is_none());
 }
 
-// TODO test incorrect TokenAccount for LST
+// TODO test fee token account not owned by fee wallet
+// TODO test incorrect vault token account
+// TODO test incorrect StakePoolDepositAuthority account
+// TODO test destination account not owned by DepositReceipt owner

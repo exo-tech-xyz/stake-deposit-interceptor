@@ -17,6 +17,7 @@ spl-program-error = "0.5.0"
 spl-program-error-derive = "0.4.1"
 spl-stake-pool = { version = "2.0.0", features = ["no-entrypoint"] }
 spl-token = "6.0.0"
+spl-token-2022 = "5.0.2"
 thiserror = "1.0.65"
 
 [dev-dependencies]

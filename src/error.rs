@@ -35,4 +35,7 @@ pub enum StakeDepositInterceptorError {
     /// 10 : Invalid DepositReceipt owner account   
     #[error("DepositReceipt owner is invalid")]
     InvalidDepositReceiptOwner,
+    /// 11 : Invalid fee token account
+    #[error("Fee token account is invalid")]
+    InvalidFeeTokenAccount,
 }

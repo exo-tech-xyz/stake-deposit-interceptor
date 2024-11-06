@@ -8,8 +8,12 @@ pub async fn create_stake_deposit_authority(
     stake_pool_pubkey: &Pubkey,
     stake_pool_mint: &Pubkey,
     authority: &Keypair,
+    fee_wallet_address: Option<&Pubkey>,
 ) {
-    let fee_wallet = Keypair::new();
+    let mut fee_wallet = Pubkey::new_unique();
+    if let Some(fee_wallet_address) = fee_wallet_address {
+        fee_wallet = *fee_wallet_address;
+    }
     let cool_down_period = 100;
     let initial_fee_rate = 20;
     let init_ix =
@@ -21,7 +25,7 @@ pub async fn create_stake_deposit_authority(
             &ctx.payer.pubkey(),
             &spl_stake_pool::id(),
             &spl_token::id(),
-            &fee_wallet.pubkey(),
+            &fee_wallet,
             cool_down_period,
             initial_fee_rate,
             &authority.pubkey(),

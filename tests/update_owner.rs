@@ -66,6 +66,7 @@ async fn setup() -> (
         &stake_pool_accounts.stake_pool,
         &stake_pool.pool_mint,
         &authority,
+        None,
     )
     .await;
 

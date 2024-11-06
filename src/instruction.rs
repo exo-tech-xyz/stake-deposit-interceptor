@@ -142,6 +142,20 @@ pub enum StakeDepositInterceptorInstruction {
     ///   1. `[s]` current owner of the DepositReceipt
     ///   2. `[]` new owner for the DepositReceipt
     ChangeDepositReceiptOwner,
+    ///   Claim the "pool" tokens held by the program from a former DepositStake
+    ///   transaction. Fees will be deducted from the destination token account
+    ///   if this instruction is invoked during the cool down period.
+    ///
+    ///   0. `[w]` DepositReceipt PDA
+    ///   1. `[w,s]` owner of the DepositReceipt
+    ///   2. `[w]` vault token account to send tokens from
+    ///   3. `[w]` destination token account
+    ///   4. `[w]` fee wallet token account
+    ///   5. `[]` StakePoolDepositStakeAuthority PDA
+    ///   6. `[]` Pool token mint
+    ///   7. `[]` Token program id
+    ///   8. `[]` System program id
+    ClaimPoolTokens,
 }
 
 pub const STAKE_POOL_DEPOSIT_STAKE_AUTHORITY: &[u8] = b"deposit_stake_authority";
@@ -465,5 +479,36 @@ pub fn create_change_deposit_receipt_owner(
         accounts,
         data: borsh::to_vec(&StakeDepositInterceptorInstruction::ChangeDepositReceiptOwner)
             .unwrap(),
+    }
+}
+
+/// Creates a ClaimPoolTokens instruction to transfer the held "pool" tokens to
+/// destination token account. Also closes the DepositReceipt and refunds the owner.
+pub fn create_claim_pool_tokens_instruction(
+    program_id: &Pubkey,
+    deposit_receipt_address: &Pubkey,
+    owner: &Pubkey,
+    vault_token_account: &Pubkey,
+    destination_token_account: &Pubkey,
+    fee_token_account: &Pubkey,
+    deposit_stake_authority: &Pubkey,
+    pool_mint: &Pubkey,
+    token_program: &Pubkey,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(*deposit_receipt_address, false),
+        AccountMeta::new(*owner, true),
+        AccountMeta::new(*vault_token_account, false),
+        AccountMeta::new(*destination_token_account, false),
+        AccountMeta::new(*fee_token_account, false),
+        AccountMeta::new_readonly(*deposit_stake_authority, false),
+        AccountMeta::new_readonly(*pool_mint, false),
+        AccountMeta::new_readonly(*token_program, false),
+        AccountMeta::new_readonly(system_program::id(), false),
+    ];
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: borsh::to_vec(&StakeDepositInterceptorInstruction::ClaimPoolTokens).unwrap(),
     }
 }

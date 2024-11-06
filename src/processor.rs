@@ -13,12 +13,12 @@ use solana_program::{
     program_pack::Pack,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
+    system_instruction, system_program,
     sysvar::Sysvar,
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_pod::primitives::{PodU32, PodU64};
-use spl_token::state::Account;
+use spl_token_2022::state::{Account, Mint};
 
 use crate::{
     deposit_receipt_signer_seeds, deposit_stake_authority_signer_seeds,
@@ -400,6 +400,98 @@ impl Processor {
         Ok(())
     }
 
+    pub fn process_claim_pool_tokens(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let deposit_receipt_info = next_account_info(account_info_iter)?;
+        let owner_info = next_account_info(account_info_iter)?;
+        let vault_token_account_info = next_account_info(account_info_iter)?;
+        let destination_token_account_info = next_account_info(account_info_iter)?;
+        let fee_token_account_info = next_account_info(account_info_iter)?;
+        let deposit_stake_authority_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+        let pool_mint_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+        let token_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+        let _system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+
+        // Validate: Owner must be signer
+        if !owner_info.is_signer {
+            return Err(StakeDepositInterceptorError::SignatureMissing.into());
+        }
+
+        let deposit_receipt =
+            try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
+
+        // Validate: Owner must match that of DepositReceipt
+        if &deposit_receipt.owner != owner_info.key {
+            return Err(StakeDepositInterceptorError::InvalidDepositReceiptOwner.into());
+        }
+
+        let deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
+            &deposit_stake_authority_info.data.borrow(),
+        )?;
+
+        // Validate: StakePoolDepositStakeAuthority PDA is correct
+        check_deposit_stake_authority_address(
+            program_id,
+            deposit_stake_authority_info.key,
+            &deposit_stake_authority,
+        )?;
+
+        // Validate: StakePoolDepositStakeAuthority must match the same during creation of DepositReceipt
+        if deposit_stake_authority_info.key != &deposit_receipt.stake_pool_deposit_stake_authority {
+            return Err(StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority.into());
+        }
+
+        // Validate: Vault token account must match that of the `StakePoolDepositStakeAuthority`
+        if &deposit_stake_authority.vault != vault_token_account_info.key {
+            return Err(StakeDepositInterceptorError::InvalidVault.into());
+        }
+
+        let fee_token_account = Account::unpack(&fee_token_account_info.data.borrow())?;
+
+        // Validate: Fee token account must be owned by `fee_wallet`
+        if fee_token_account.owner != deposit_stake_authority.fee_wallet {
+            return Err(StakeDepositInterceptorError::InvalidFeeTokenAccount.into());
+        }
+
+        let pool_mint = Mint::unpack(&pool_mint_info.data.borrow())?;
+
+        let clock = Clock::get()?;
+        let fee_amount = deposit_receipt.calculate_fee_amount(clock.unix_timestamp);
+
+        // Transfer fee tokens to fee token account
+        transfer_tokens_cpi(
+            token_program_info.clone(),
+            vault_token_account_info.clone(),
+            pool_mint_info.clone(),
+            fee_token_account_info.clone(),
+            deposit_stake_authority_info.clone(),
+            fee_amount,
+            pool_mint.decimals,
+            &deposit_stake_authority,
+        )?;
+
+        let amount = u64::from(deposit_receipt.lst_amount).saturating_sub(fee_amount);
+        // Transfer the rest of the tokens to the destination token account
+        transfer_tokens_cpi(
+            token_program_info.clone(),
+            vault_token_account_info.clone(),
+            pool_mint_info.clone(),
+            destination_token_account_info.clone(),
+            deposit_stake_authority_info.clone(),
+            amount,
+            pool_mint.decimals,
+            &deposit_stake_authority,
+        )?;
+
+        // Close the DepositReceipt account
+        close_account(deposit_receipt_info, owner_info)?;
+
+        Ok(())
+    }
+
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         let instruction = StakeDepositInterceptorInstruction::try_from_slice(input)?;
         match instruction {
@@ -426,6 +518,9 @@ impl Processor {
             }
             StakeDepositInterceptorInstruction::ChangeDepositReceiptOwner => {
                 Self::process_change_deposit_receipt_owner(program_id, accounts)?;
+            }
+            StakeDepositInterceptorInstruction::ClaimPoolTokens => {
+                Self::process_claim_pool_tokens(program_id, accounts)?;
             }
         }
         Ok(())
@@ -616,4 +711,49 @@ pub fn check_deposit_receipt_address(
         return Err(StakeDepositInterceptorError::InvalidDepositReceipt.into());
     }
     Ok(())
+}
+
+/// Transfer tokens using SPL Token or Token2022 based on the given token program.
+pub fn transfer_tokens_cpi<'a>(
+    token_program: AccountInfo<'a>,
+    source: AccountInfo<'a>,
+    mint: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
+    amount: u64,
+    decimals: u8,
+    deposit_stake_authority: &StakePoolDepositStakeAuthority,
+) -> Result<(), ProgramError> {
+    let ix = spl_token_2022::instruction::transfer_checked(
+        token_program.key,
+        source.key,
+        mint.key,
+        destination.key,
+        authority.key,
+        &[],
+        amount,
+        decimals,
+    )?;
+    invoke_signed(
+        &ix,
+        &[source, mint, destination, authority],
+        &[deposit_stake_authority_signer_seeds!(
+            deposit_stake_authority
+        )],
+    )
+}
+
+/// Close an account and send any leftover lamports to the destination account.
+pub fn close_account<'a>(
+    source: &AccountInfo<'a>,
+    destination: &AccountInfo<'a>,
+) -> Result<(), ProgramError> {
+    let dest_starting_lamports = destination.lamports();
+    **destination.lamports.borrow_mut() = dest_starting_lamports
+        .checked_add(source.lamports())
+        .unwrap();
+    **source.lamports.borrow_mut() = 0;
+
+    source.assign(&system_program::ID);
+    source.realloc(0, false).map_err(Into::into)
 }
