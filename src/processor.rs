@@ -352,6 +352,7 @@ impl Processor {
         deposit_receipt.base = deposit_stake_args.base;
         deposit_receipt.owner = deposit_stake_args.owner;
         deposit_receipt.stake_pool = *stake_pool_info.key;
+        deposit_receipt.stake_pool_deposit_stake_authority = *deposit_stake_authority_info.key;
         deposit_receipt.deposit_time = clock.unix_timestamp.unsigned_abs().into();
         deposit_receipt.lst_amount = pool_tokens_minted.into();
         deposit_receipt.cool_down_period = deposit_stake_authority.cool_down_period;

@@ -3,14 +3,16 @@ mod helpers;
 use helpers::{
     airdrop_lamports, create_stake_account, create_stake_deposit_authority, create_token_account,
     create_validator_and_add_to_pool, delegate_stake_account, get_account,
-    get_account_data_deserialized, program_test_context_with_stake_pool_state,
+    get_account_data_deserialized, program_test_context_with_stake_pool_state, set_clock_time,
     stake_pool_update_all, update_stake_deposit_authority, StakePoolAccounts,
     ValidatorStakeAccount,
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     borsh1::try_from_slice_unchecked,
+    clock::Clock,
     native_token::LAMPORTS_PER_SOL,
+    program_pack::Pack,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
@@ -20,6 +22,7 @@ use solana_sdk::{
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account,
 };
+use spl_token_2022::state::Account;
 use stake_deposit_interceptor::{
     instruction::{derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority},
     state::{DepositReceipt, StakePoolDepositStakeAuthority},
@@ -192,12 +195,12 @@ async fn claim_pool_tokens_success() {
         mut ctx,
         stake_pool_accounts,
         stake_pool,
-        validator_stake_accounts,
+        _validator_stake_accounts,
         deposit_stake_authority,
         depositor,
-        depositor_stake_account,
+        _depositor_stake_account,
         base,
-        total_staked_amount,
+        _total_staked_amount,
         depositor_pool_token_account,
         fee_wallet,
     ) = setup().await;
@@ -241,6 +244,11 @@ async fn claim_pool_tokens_success() {
         &spl_token::id(),
     );
 
+    let clock: Clock = ctx.banks_client.get_sysvar().await.unwrap();
+    let half_cool_down = u64::from(deposit_receipt.cool_down_period).saturating_div(2);
+    let clock_time = clock.unix_timestamp + half_cool_down as i64;
+    set_clock_time(&mut ctx, clock_time).await;
+
     let tx = Transaction::new_signed_with_payer(
         &[create_fee_token_account_ix, ix],
         Some(&depositor.pubkey()),
@@ -250,9 +258,20 @@ async fn claim_pool_tokens_success() {
 
     ctx.banks_client.process_transaction(tx).await.unwrap();
 
-    // TODO asset Destination token account should have received pool tokens
+    let fee_amount = deposit_receipt.calculate_fee_amount(clock_time);
+    let user_amount = u64::from(deposit_receipt.lst_amount) - fee_amount;
 
-    // TODO assert Fees should have been paid
+    // Destination token account should have received pool tokens
+    let destination_token_account_info =
+        get_account(&mut ctx.banks_client, &depositor_pool_token_account).await;
+    let destination_token_account =
+        Account::unpack(&destination_token_account_info.data.as_slice()).unwrap();
+    assert_eq!(destination_token_account.amount, user_amount,);
+
+    // Fees should have been paid
+    let fee_token_account_info = get_account(&mut ctx.banks_client, &fee_token_account).await;
+    let fee_token_account = Account::unpack(&fee_token_account_info.data.as_slice()).unwrap();
+    assert_eq!(fee_token_account.amount, fee_amount,);
 
     // DepositReceipt account should have been closed
     let deposit_receipt_account = ctx
