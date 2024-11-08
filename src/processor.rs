@@ -1,6 +1,7 @@
 use std::mem;
 
 use borsh::BorshDeserialize;
+use jito_bytemuck::{AccountDeserialize, Discriminator};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     borsh1::try_from_slice_unchecked,
@@ -17,7 +18,6 @@ use solana_program::{
     sysvar::Sysvar,
 };
 use spl_associated_token_account::get_associated_token_address;
-use spl_pod::primitives::{PodU32, PodU64};
 use spl_token_2022::state::{Account, Mint};
 
 use crate::{
@@ -29,10 +29,7 @@ use crate::{
         UpdateStakePoolDepositStakeAuthorityArgs, DEPOSIT_RECEIPT,
         STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
     },
-    state::{
-        DepositReceipt, StakePoolDepositStakeAuthority, DEPOSIT_AUTHORITY_DISCRIMINATOR,
-        DEPOSIT_RECEIPT_DISCRIMINATOR,
-    },
+    state::{DepositReceipt, StakePoolDepositStakeAuthority},
 };
 
 pub struct Processor;
@@ -105,7 +102,7 @@ impl Processor {
         create_pda_account(
             payer_info,
             &rent,
-            mem::size_of::<StakePoolDepositStakeAuthority>(),
+            8 + mem::size_of::<StakePoolDepositStakeAuthority>(),
             program_id,
             system_program_info,
             deposit_stake_authority_info,
@@ -139,25 +136,15 @@ impl Processor {
             &[&pda_seeds], // PDA's signature
         )?;
 
-        let mut deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
-            &deposit_stake_authority_info.data.borrow(),
-        )?;
-        // Ensure the account has not been in use
-        if deposit_stake_authority.is_initialized() {
-            return Err(StakeDepositInterceptorError::AlreadyInUse.into());
-        }
-
-        // Error if StakePoolDepositStakeAuthority account is not rent exempt
-        if !rent.is_exempt(
-            deposit_stake_authority_info.lamports(),
-            deposit_stake_authority_info.data_len(),
-        ) {
-            return Err(ProgramError::AccountNotRentExempt);
-        }
+        let mut deposit_stake_authority_data =
+            deposit_stake_authority_info.try_borrow_mut_data()?;
+        deposit_stake_authority_data[0] = StakePoolDepositStakeAuthority::DISCRIMINATOR;
+        let deposit_stake_authority = StakePoolDepositStakeAuthority::try_from_slice_unchecked_mut(
+            &mut deposit_stake_authority_data,
+        )
+        .unwrap();
 
         // Set StakePoolDepositStakeAuthority values
-        deposit_stake_authority.discriminator =
-            PodU64::from(u64::from(DEPOSIT_AUTHORITY_DISCRIMINATOR));
         deposit_stake_authority.stake_pool = *stake_pool_info.key;
         deposit_stake_authority.pool_mint = stake_pool.pool_mint;
         deposit_stake_authority.vault = vault_ata;
@@ -165,14 +152,10 @@ impl Processor {
         deposit_stake_authority.authority = *authority.key;
         deposit_stake_authority.fee_wallet = init_deposit_stake_authority_args.fee_wallet;
         deposit_stake_authority.cool_down_period =
-            PodU64::from_primitive(init_deposit_stake_authority_args.cool_down_period);
+            init_deposit_stake_authority_args.cool_down_period.into();
         deposit_stake_authority.inital_fee_rate =
-            PodU32::from_primitive(init_deposit_stake_authority_args.initial_fee_rate);
+            init_deposit_stake_authority_args.initial_fee_rate.into();
         deposit_stake_authority.bump_seed = bump_seed;
-        borsh::to_writer(
-            &mut deposit_stake_authority_info.data.borrow_mut()[..],
-            &deposit_stake_authority,
-        )?;
 
         Ok(())
     }
@@ -197,9 +180,12 @@ impl Processor {
             return Err(StakeDepositInterceptorError::SignatureMissing.into());
         }
 
-        let mut deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
-            &deposit_stake_authority_info.data.borrow(),
-        )?;
+        let mut deposit_stake_authority_data =
+            deposit_stake_authority_info.try_borrow_mut_data()?;
+        let deposit_stake_authority = StakePoolDepositStakeAuthority::try_from_slice_unchecked_mut(
+            &mut deposit_stake_authority_data,
+        )
+        .unwrap();
 
         check_deposit_stake_authority_address(
             program_id,
@@ -221,19 +207,14 @@ impl Processor {
         }
 
         if let Some(cool_down_period) = update_deposit_stake_authority_args.cool_down_period {
-            deposit_stake_authority.cool_down_period = PodU64::from(cool_down_period);
+            deposit_stake_authority.cool_down_period = cool_down_period.into();
         }
         if let Some(initial_fee_rate) = update_deposit_stake_authority_args.initial_fee_rate {
-            deposit_stake_authority.inital_fee_rate = PodU32::from(initial_fee_rate);
+            deposit_stake_authority.inital_fee_rate = initial_fee_rate.into();
         }
         if let Some(fee_wallet) = update_deposit_stake_authority_args.fee_wallet {
             deposit_stake_authority.fee_wallet = fee_wallet;
         }
-
-        borsh::to_writer(
-            &mut deposit_stake_authority_info.data.borrow_mut()[..],
-            &deposit_stake_authority,
-        )?;
 
         Ok(())
     }
@@ -272,9 +253,10 @@ impl Processor {
 
         // NOTE: we assume that stake-pool program makes all of the assertions that the SPL stake-pool program does.
 
-        let deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
-            &deposit_stake_authority_info.data.borrow(),
-        )?;
+        let deposit_stake_authority_data = deposit_stake_authority_info.try_borrow_data()?;
+        let deposit_stake_authority =
+            StakePoolDepositStakeAuthority::try_from_slice_unchecked(&deposit_stake_authority_data)
+                .unwrap();
 
         // Validate StakePoolDepositStakeAuthority PDA is correct
         check_deposit_stake_authority_address(
@@ -344,17 +326,18 @@ impl Processor {
         create_pda_account(
             payer_info,
             &rent,
-            mem::size_of::<DepositReceipt>(),
+            8 + mem::size_of::<DepositReceipt>(),
             program_id,
             system_program_info,
             deposit_receipt_info,
             &pda_seeds,
         )?;
 
-        let mut deposit_receipt =
-            try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
+        let mut deposit_receipt_data = deposit_receipt_info.try_borrow_mut_data()?;
+        deposit_receipt_data[0] = DepositReceipt::DISCRIMINATOR;
+        let deposit_receipt =
+            DepositReceipt::try_from_slice_unchecked_mut(&mut deposit_receipt_data).unwrap();
 
-        deposit_receipt.discriminator = PodU64::from(u64::from(DEPOSIT_RECEIPT_DISCRIMINATOR));
         deposit_receipt.base = deposit_stake_args.base;
         deposit_receipt.owner = deposit_stake_args.owner;
         deposit_receipt.stake_pool = *stake_pool_info.key;
@@ -364,10 +347,6 @@ impl Processor {
         deposit_receipt.cool_down_period = deposit_stake_authority.cool_down_period;
         deposit_receipt.initial_fee_rate = deposit_stake_authority.inital_fee_rate;
         deposit_receipt.bump_seed = bump_seed;
-        borsh::to_writer(
-            &mut deposit_receipt_info.data.borrow_mut()[..],
-            &deposit_receipt,
-        )?;
 
         Ok(())
     }
@@ -386,8 +365,9 @@ impl Processor {
             return Err(StakeDepositInterceptorError::SignatureMissing.into());
         }
 
-        let mut deposit_receipt =
-            try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
+        let mut deposit_receipt_data = deposit_receipt_info.try_borrow_mut_data()?;
+        let deposit_receipt =
+            DepositReceipt::try_from_slice_unchecked_mut(&mut deposit_receipt_data).unwrap();
 
         // Validate: DepositReceipt address must match expected PDA
         check_deposit_receipt_address(program_id, deposit_receipt_info.key, &deposit_receipt)?;
@@ -399,10 +379,6 @@ impl Processor {
 
         // Update owner to new_owner
         deposit_receipt.owner = *new_owner_info.key;
-        borsh::to_writer(
-            &mut deposit_receipt_info.data.borrow_mut()[..],
-            &deposit_receipt,
-        )?;
 
         Ok(())
     }
@@ -422,76 +398,85 @@ impl Processor {
         let token_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
         let _system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
 
-        // Validate: Owner must be signer
-        if !owner_info.is_signer {
-            return Err(StakeDepositInterceptorError::SignatureMissing.into());
+        {
+            // Validate: Owner must be signer
+            if !owner_info.is_signer {
+                return Err(StakeDepositInterceptorError::SignatureMissing.into());
+            }
+
+            let deposit_receipt_data = deposit_receipt_info.try_borrow_data()?;
+            let deposit_receipt =
+                DepositReceipt::try_from_slice_unchecked(&deposit_receipt_data).unwrap();
+
+            // Validate: Owner must match that of DepositReceipt
+            if &deposit_receipt.owner != owner_info.key {
+                return Err(StakeDepositInterceptorError::InvalidDepositReceiptOwner.into());
+            }
+
+            let deposit_stake_authority_data = deposit_stake_authority_info.try_borrow_data()?;
+            let deposit_stake_authority = StakePoolDepositStakeAuthority::try_from_slice_unchecked(
+                &deposit_stake_authority_data,
+            )
+            .unwrap();
+
+            // Validate: StakePoolDepositStakeAuthority PDA is correct
+            check_deposit_stake_authority_address(
+                program_id,
+                deposit_stake_authority_info.key,
+                &deposit_stake_authority,
+            )?;
+
+            // Validate: StakePoolDepositStakeAuthority must match the same during creation of DepositReceipt
+            if deposit_stake_authority_info.key
+                != &deposit_receipt.stake_pool_deposit_stake_authority
+            {
+                return Err(
+                    StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority.into(),
+                );
+            }
+
+            // Validate: Vault token account must match that of the `StakePoolDepositStakeAuthority`
+            if &deposit_stake_authority.vault != vault_token_account_info.key {
+                return Err(StakeDepositInterceptorError::InvalidVault.into());
+            }
+
+            let fee_token_account = Account::unpack(&fee_token_account_info.data.borrow())?;
+
+            // Validate: Fee token account must be owned by `fee_wallet`
+            if fee_token_account.owner != deposit_stake_authority.fee_wallet {
+                return Err(StakeDepositInterceptorError::InvalidFeeTokenAccount.into());
+            }
+
+            let pool_mint = Mint::unpack(&pool_mint_info.data.borrow())?;
+
+            let clock = Clock::get()?;
+            let fee_amount = deposit_receipt.calculate_fee_amount(clock.unix_timestamp);
+
+            // Transfer fee tokens to fee token account
+            transfer_tokens_cpi(
+                token_program_info.clone(),
+                vault_token_account_info.clone(),
+                pool_mint_info.clone(),
+                fee_token_account_info.clone(),
+                deposit_stake_authority_info.clone(),
+                fee_amount,
+                pool_mint.decimals,
+                &deposit_stake_authority,
+            )?;
+
+            let amount = u64::from(deposit_receipt.lst_amount).saturating_sub(fee_amount);
+            // Transfer the rest of the tokens to the destination token account
+            transfer_tokens_cpi(
+                token_program_info.clone(),
+                vault_token_account_info.clone(),
+                pool_mint_info.clone(),
+                destination_token_account_info.clone(),
+                deposit_stake_authority_info.clone(),
+                amount,
+                pool_mint.decimals,
+                &deposit_stake_authority,
+            )?;
         }
-
-        let deposit_receipt =
-            try_from_slice_unchecked::<DepositReceipt>(&deposit_receipt_info.data.borrow())?;
-
-        // Validate: Owner must match that of DepositReceipt
-        if &deposit_receipt.owner != owner_info.key {
-            return Err(StakeDepositInterceptorError::InvalidDepositReceiptOwner.into());
-        }
-
-        let deposit_stake_authority = try_from_slice_unchecked::<StakePoolDepositStakeAuthority>(
-            &deposit_stake_authority_info.data.borrow(),
-        )?;
-
-        // Validate: StakePoolDepositStakeAuthority PDA is correct
-        check_deposit_stake_authority_address(
-            program_id,
-            deposit_stake_authority_info.key,
-            &deposit_stake_authority,
-        )?;
-
-        // Validate: StakePoolDepositStakeAuthority must match the same during creation of DepositReceipt
-        if deposit_stake_authority_info.key != &deposit_receipt.stake_pool_deposit_stake_authority {
-            return Err(StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority.into());
-        }
-
-        // Validate: Vault token account must match that of the `StakePoolDepositStakeAuthority`
-        if &deposit_stake_authority.vault != vault_token_account_info.key {
-            return Err(StakeDepositInterceptorError::InvalidVault.into());
-        }
-
-        let fee_token_account = Account::unpack(&fee_token_account_info.data.borrow())?;
-
-        // Validate: Fee token account must be owned by `fee_wallet`
-        if fee_token_account.owner != deposit_stake_authority.fee_wallet {
-            return Err(StakeDepositInterceptorError::InvalidFeeTokenAccount.into());
-        }
-
-        let pool_mint = Mint::unpack(&pool_mint_info.data.borrow())?;
-
-        let clock = Clock::get()?;
-        let fee_amount = deposit_receipt.calculate_fee_amount(clock.unix_timestamp);
-
-        // Transfer fee tokens to fee token account
-        transfer_tokens_cpi(
-            token_program_info.clone(),
-            vault_token_account_info.clone(),
-            pool_mint_info.clone(),
-            fee_token_account_info.clone(),
-            deposit_stake_authority_info.clone(),
-            fee_amount,
-            pool_mint.decimals,
-            &deposit_stake_authority,
-        )?;
-
-        let amount = u64::from(deposit_receipt.lst_amount).saturating_sub(fee_amount);
-        // Transfer the rest of the tokens to the destination token account
-        transfer_tokens_cpi(
-            token_program_info.clone(),
-            vault_token_account_info.clone(),
-            pool_mint_info.clone(),
-            destination_token_account_info.clone(),
-            deposit_stake_authority_info.clone(),
-            amount,
-            pool_mint.decimals,
-            &deposit_stake_authority,
-        )?;
 
         // Close the DepositReceipt account
         close_account(deposit_receipt_info, owner_info)?;
@@ -561,51 +546,21 @@ fn create_pda_account<'a>(
     new_pda_account: &AccountInfo<'a>,
     new_pda_signer_seeds: &[&[u8]],
 ) -> ProgramResult {
-    if new_pda_account.lamports() > 0 {
-        let required_lamports = rent
-            .minimum_balance(space)
-            .max(1)
-            .saturating_sub(new_pda_account.lamports());
-
-        if required_lamports > 0 {
-            invoke(
-                &system_instruction::transfer(payer.key, new_pda_account.key, required_lamports),
-                &[
-                    payer.clone(),
-                    new_pda_account.clone(),
-                    system_program.clone(),
-                ],
-            )?;
-        }
-
-        invoke_signed(
-            &system_instruction::allocate(new_pda_account.key, space as u64),
-            &[new_pda_account.clone(), system_program.clone()],
-            &[new_pda_signer_seeds],
-        )?;
-
-        invoke_signed(
-            &system_instruction::assign(new_pda_account.key, owner),
-            &[new_pda_account.clone(), system_program.clone()],
-            &[new_pda_signer_seeds],
-        )
-    } else {
-        invoke_signed(
-            &system_instruction::create_account(
-                payer.key,
-                new_pda_account.key,
-                rent.minimum_balance(space).max(1),
-                space as u64,
-                owner,
-            ),
-            &[
-                payer.clone(),
-                new_pda_account.clone(),
-                system_program.clone(),
-            ],
-            &[new_pda_signer_seeds],
-        )
-    }
+    invoke_signed(
+        &system_instruction::create_account(
+            payer.key,
+            new_pda_account.key,
+            rent.minimum_balance(space).max(1),
+            space as u64,
+            owner,
+        ),
+        &[
+            payer.clone(),
+            new_pda_account.clone(),
+            system_program.clone(),
+        ],
+        &[new_pda_signer_seeds],
+    )
 }
 
 /// Invokes the `DepositStake` instruction for the given stake-pool program.
@@ -681,13 +636,14 @@ fn deposit_stake_cpi<'a>(
         accounts,
         data,
     };
-    invoke_signed(
+    let ret = invoke_signed(
         &ix,
         &account_infos,
         &[deposit_stake_authority_signer_seeds!(
             deposit_stake_authority
         )],
-    )
+    );
+    ret
 }
 
 /// Check the validity of the supplied deposit_stake_authority given the relevant seeds.

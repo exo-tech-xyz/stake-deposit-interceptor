@@ -1,14 +1,14 @@
 mod helpers;
 
 use helpers::program_test_context_with_stake_pool_state;
+use jito_bytemuck::AccountDeserialize;
 use solana_sdk::{
     borsh1::try_from_slice_unchecked, program_pack::Pack, signature::Keypair, signer::Signer,
     transaction::Transaction,
 };
 use spl_associated_token_account::get_associated_token_address;
 use stake_deposit_interceptor::{
-    instruction::derive_stake_pool_deposit_stake_authority,
-    state::{StakePoolDepositStakeAuthority, DEPOSIT_AUTHORITY_DISCRIMINATOR},
+    instruction::derive_stake_pool_deposit_stake_authority, state::StakePoolDepositStakeAuthority,
 };
 
 #[tokio::test]
@@ -74,18 +74,14 @@ async fn test_init_deposit_stake_authority() {
         .unwrap()
         .unwrap();
 
-    let deposit_stake_authority: StakePoolDepositStakeAuthority =
-        try_from_slice_unchecked(&account.data.as_slice()).unwrap();
+    let deposit_stake_authority =
+        StakePoolDepositStakeAuthority::try_from_slice_unchecked(&account.data.as_slice()).unwrap();
     let vault_token_account =
         spl_token::state::Account::unpack(vault_account.data.as_slice()).unwrap();
     assert_eq!(vault_token_account.mint, stake_pool.pool_mint);
     assert_eq!(vault_token_account.amount, 0);
     assert_eq!(vault_token_account.owner, deposit_stake_authority_pubkey);
 
-    assert_eq!(
-        u64::from(deposit_stake_authority.discriminator),
-        u64::from(DEPOSIT_AUTHORITY_DISCRIMINATOR)
-    );
     assert_eq!(deposit_stake_authority.authority, authority.pubkey());
     let actual_cool_down_period: u64 = deposit_stake_authority.cool_down_period.into();
     let actual_initial_fee_rate: u32 = deposit_stake_authority.inital_fee_rate.into();

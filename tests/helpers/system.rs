@@ -1,4 +1,5 @@
 use borsh::BorshDeserialize;
+use jito_bytemuck::AccountDeserialize;
 use solana_program_test::{BanksClient, ProgramTestContext};
 use solana_sdk::{
     account::Account as SolanaAccount, borsh1::try_from_slice_unchecked, pubkey::Pubkey, signer::Signer, system_instruction, transaction::Transaction
@@ -31,7 +32,7 @@ pub async fn get_account(banks_client: &mut BanksClient, pubkey: &Pubkey) -> Sol
 }
 
 /// Fetch an account and deserialize based on type.
-pub async fn get_account_data_deserialized<T: BorshDeserialize>(banks_client: &mut BanksClient, pubkey: &Pubkey) -> T {
+pub async fn get_account_data_deserialized<T: AccountDeserialize>(banks_client: &mut BanksClient, pubkey: &Pubkey) -> T {
     let account = get_account(banks_client, pubkey).await;
-    try_from_slice_unchecked::<T>(&account.data.as_slice()).unwrap()
+    *T::try_from_slice_unchecked(account.data.as_slice()).unwrap()
 }

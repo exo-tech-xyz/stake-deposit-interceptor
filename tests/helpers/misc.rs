@@ -1,5 +1,4 @@
 use solana_program_test::{processor, ProgramTest, ProgramTestContext};
-use solana_program::pubkey::Pubkey;
 
 use super::{create_stake_pool, StakePoolAccounts};
 
