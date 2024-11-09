@@ -57,6 +57,9 @@ impl Processor {
 
         let rent = Rent::get()?;
 
+        // Validate: System program is correct native program
+        check_system_program(system_program_info.key)?;
+
         // Validate: authority and StakePool's manager signed the TX
         if !authority.is_signer || !stake_pool_manager_info.is_signer {
             return Err(StakeDepositInterceptorError::SignatureMissing.into());
@@ -248,6 +251,8 @@ impl Processor {
         let stake_program_info = next_account_info(account_info_iter)?;
         let system_program_info = next_account_info(account_info_iter)?;
 
+        // Validate: System program is correct native program
+        check_system_program(system_program_info.key)?;
         // Validate `StakePoolDepositStakeAuthority` is owned by current program.
         check_account_owner(deposit_stake_authority_info, program_id)?;
 
@@ -396,7 +401,10 @@ impl Processor {
         let deposit_stake_authority_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
         let pool_mint_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
         let token_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-        let _system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+        let system_program_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
+
+        // Validate: System program is correct native program
+        check_system_program(system_program_info.key)?;
 
         {
             // Validate: Owner must be signer
@@ -529,6 +537,20 @@ fn check_account_owner(
             "Expected account to be owned by program {}, received {}",
             program_id,
             account_info.owner
+        );
+        Err(ProgramError::IncorrectProgramId)
+    } else {
+        Ok(())
+    }
+}
+
+/// Check system program address
+fn check_system_program(program_id: &Pubkey) -> Result<(), ProgramError> {
+    if *program_id != system_program::id() {
+        msg!(
+            "Expected system program {}, received {}",
+            system_program::id(),
+            program_id
         );
         Err(ProgramError::IncorrectProgramId)
     } else {
