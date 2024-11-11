@@ -5,7 +5,6 @@ use jito_bytemuck::AccountDeserialize;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction, InstructionError},
-    program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
     signature::Keypair,
@@ -103,8 +102,6 @@ async fn test_init_deposit_stake_authority() {
     assert_eq!(deposit_stake_authority.vault, vault_ata);
 }
 
-// TODO add tests for validations
-
 async fn setup_with_ix() -> (ProgramTestContext, StakePoolAccounts, Keypair, Instruction) {
     let (ctx, stake_pool_accounts) = program_test_context_with_stake_pool_state().await;
 
@@ -182,6 +179,227 @@ async fn test_fail_authority_non_signer() {
             assert_eq!(
                 error,
                 InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32)
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_stakepool_manager_non_signer() {
+    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
+    let manager = Keypair::new();
+    init_ix.accounts[6] = AccountMeta::new_readonly(manager.pubkey(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32)
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_incorrect_stakepool_program() {
+    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
+    init_ix.accounts[7] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(StakeDepositInterceptorError::InvalidStakePool as u32)
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_incorrect_stakepool_manager() {
+    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
+    let manager = Keypair::new();
+    init_ix.accounts[6] = AccountMeta::new_readonly(manager.pubkey(), true);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority, &manager],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(
+                    StakeDepositInterceptorError::InvalidStakePoolManager as u32
+                )
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_incorrect_stakepool_mint() {
+    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
+    init_ix.accounts[5] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(StakeDepositInterceptorError::InvalidStakePool as u32)
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_incorrect_token_program() {
+    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
+    init_ix.accounts[8] = AccountMeta::new_readonly(spl_token_2022::id(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(StakeDepositInterceptorError::InvalidTokenProgram as u32)
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_incorrect_deposit_stake_authority() {
+    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
+    init_ix.accounts[1] = AccountMeta::new(Pubkey::new_unique(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(StakeDepositInterceptorError::InvalidSeeds as u32)
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_incorrect_vault() {
+    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
+    init_ix.accounts[2] = AccountMeta::new(Pubkey::new_unique(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(StakeDepositInterceptorError::InvalidVault as u32)
             );
         }
         _ => panic!("Wrong error"),
