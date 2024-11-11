@@ -1,8 +1,6 @@
 use solana_program_test::{processor, ProgramTest, ProgramTestContext};
 use solana_sdk::{
-    instruction::InstructionError,
-    transaction::{Transaction, TransactionError},
-    transport::TransportError,
+    account::AccountSharedData, instruction::InstructionError, pubkey::Pubkey, transaction::{Transaction, TransactionError}, transport::TransportError
 };
 
 use super::{create_stake_pool, StakePoolAccounts};
@@ -29,4 +27,24 @@ pub async fn program_test_context_with_stake_pool_state() -> (ProgramTestContext
         .await;
     let stake_pool_accounts = create_stake_pool(&mut ctx).await;
     (ctx, stake_pool_accounts)
+}
+
+/// Clones all the existing account information and data to a new account. Returns the
+/// new address of the account.
+pub async fn clone_account_to_new_address(ctx: &mut ProgramTestContext, address: &Pubkey) -> Pubkey {
+    let new_address = Pubkey::new_unique();
+    let original = ctx
+        .banks_client
+        .get_account(*address)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut bad_deposit_stake_authority = AccountSharedData::new(
+        original.lamports,
+        original.data.len(),
+        &original.owner,
+    );
+    bad_deposit_stake_authority.set_data_from_slice(&original.data);
+    ctx.set_account(&new_address, &bad_deposit_stake_authority);
+    new_address
 }

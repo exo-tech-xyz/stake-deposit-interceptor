@@ -1,22 +1,26 @@
 mod helpers;
 
 use helpers::{
-    airdrop_lamports, create_stake_account, create_stake_deposit_authority, create_token_account,
-    create_validator_and_add_to_pool, delegate_stake_account, get_account_data_deserialized,
+    airdrop_lamports, clone_account_to_new_address, create_stake_account,
+    create_stake_deposit_authority, create_token_account, create_validator_and_add_to_pool,
+    delegate_stake_account, get_account_data_deserialized,
     program_test_context_with_stake_pool_state, stake_pool_update_all,
     update_stake_deposit_authority, StakePoolAccounts, ValidatorStakeAccount,
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     borsh1::try_from_slice_unchecked,
+    instruction::{AccountMeta, Instruction, InstructionError},
     native_token::LAMPORTS_PER_SOL,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
     stake::{self},
-    transaction::Transaction,
+    transaction::{Transaction, TransactionError},
+    transport::TransportError,
 };
 use stake_deposit_interceptor::{
+    error::StakeDepositInterceptorError,
     instruction::{derive_stake_deposit_receipt, derive_stake_pool_deposit_stake_authority},
     state::{DepositReceipt, StakePoolDepositStakeAuthority},
 };
@@ -224,6 +228,133 @@ async fn success() {
     assert_eq!(deposit_receipt.owner, new_owner);
 }
 
-// TODO test fail if owner does not sign
-// TODO test fail if signed owner does not match
-// TODO test invalid PDA for DepositReceipt
+async fn setup_with_ix() -> (ProgramTestContext, Keypair, Pubkey, Instruction) {
+    let (
+        ctx,
+        stake_pool_accounts,
+        _stake_pool,
+        _validator_stake_accounts,
+        _deposit_stake_authority,
+        depositor,
+        _depositor_stake_account,
+        base,
+        _total_staked_amount,
+    ) = setup().await;
+
+    let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
+        &stake_deposit_interceptor::id(),
+        &depositor.pubkey(),
+        &stake_pool_accounts.stake_pool,
+        &base,
+    );
+
+    let new_owner = Pubkey::new_unique();
+
+    // Update owner of DepositReceipt
+    let ix = stake_deposit_interceptor::instruction::create_change_deposit_receipt_owner(
+        &stake_deposit_interceptor::id(),
+        &deposit_receipt_pda,
+        &depositor.pubkey(),
+        &new_owner,
+    );
+    (ctx, depositor, deposit_receipt_pda, ix)
+}
+
+#[tokio::test]
+async fn test_fail_owner_not_signer() {
+    let (mut ctx, depositor, _deposit_receipt_pda, mut ix) = setup_with_ix().await;
+    ix.accounts[1] = AccountMeta::new(depositor.pubkey(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32)
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_invalid_deposit_receipt_address() {
+    let (mut ctx, depositor, deposit_receipt_pda, mut ix) = setup_with_ix().await;
+    let bad_account = clone_account_to_new_address(&mut ctx, &deposit_receipt_pda).await;
+    ix.accounts[0] = AccountMeta::new(bad_account, false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &depositor],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(
+                    StakeDepositInterceptorError::InvalidDepositReceipt as u32
+                )
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
+async fn test_fail_invalid_owner() {
+    let (mut ctx, _depositor, _deposit_receipt_pda, mut ix) = setup_with_ix().await;
+    let bad_owner = Keypair::new();
+    ix.accounts[1] = AccountMeta::new_readonly(bad_owner.pubkey(), true);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &bad_owner],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(
+                error,
+                InstructionError::Custom(
+                    StakeDepositInterceptorError::InvalidDepositReceiptOwner as u32
+                )
+            );
+        }
+        _ => panic!("Wrong error"),
+    };
+}
