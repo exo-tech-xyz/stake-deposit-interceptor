@@ -1,5 +1,7 @@
 mod helpers;
 
+use std::mem;
+
 use helpers::{
     airdrop_lamports, clone_account_to_new_address, create_stake_account,
     create_stake_deposit_authority, create_token_account, create_validator_and_add_to_pool,
@@ -9,15 +11,7 @@ use helpers::{
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    borsh1::try_from_slice_unchecked,
-    instruction::{AccountMeta, Instruction, InstructionError},
-    native_token::LAMPORTS_PER_SOL,
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-    stake::{self},
-    transaction::{Transaction, TransactionError},
-    transport::TransportError,
+    account::AccountSharedData, borsh1::try_from_slice_unchecked, instruction::{AccountMeta, Instruction, InstructionError}, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, signature::Keypair, signer::Signer, stake::{self}, transaction::{Transaction, TransactionError}, transport::TransportError
 };
 use stake_deposit_interceptor::{
     error::StakeDepositInterceptorError,
@@ -292,6 +286,45 @@ async fn test_fail_owner_not_signer() {
 }
 
 #[tokio::test]
+async fn test_fail_invalid_deposit_receipt_owner() {
+    let (mut ctx, depositor, deposit_receipt_pda, ix) = setup_with_ix().await;
+    // Set the owner of the `DepositReceipt` to a bad pubkey.
+    let original = ctx
+        .banks_client
+        .get_account(deposit_receipt_pda)
+        .await
+        .unwrap()
+        .unwrap();
+    const ACCOUNT_SIZE: usize = 8 + mem::size_of::<DepositReceipt>();
+    let mut bad_account =
+        AccountSharedData::new(original.lamports, ACCOUNT_SIZE, &Pubkey::new_unique());
+    bad_account.set_data_from_slice(&original.data);
+    ctx.set_account(&deposit_receipt_pda, &bad_account);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&depositor.pubkey()),
+        &[&depositor],
+        ctx.last_blockhash,
+    );
+
+    let transaction_error: TransportError = ctx
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .err()
+        .expect("Should have errored")
+        .into();
+
+    match transaction_error {
+        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
+            assert_eq!(error, InstructionError::IncorrectProgramId);
+        }
+        _ => panic!("Wrong error"),
+    };
+}
+
+#[tokio::test]
 async fn test_fail_invalid_deposit_receipt_address() {
     let (mut ctx, depositor, deposit_receipt_pda, mut ix) = setup_with_ix().await;
     let bad_account = clone_account_to_new_address(&mut ctx, &deposit_receipt_pda).await;
@@ -358,3 +391,5 @@ async fn test_fail_invalid_owner() {
         _ => panic!("Wrong error"),
     };
 }
+
+// TODO add test to check for PDA owner

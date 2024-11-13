@@ -356,6 +356,8 @@ impl Processor {
         Ok(())
     }
 
+    /// Update the `owner` of the DepositReceipt, allowing a different address
+    /// to receive the tokens during Claim.
     pub fn process_change_deposit_receipt_owner(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -364,6 +366,9 @@ impl Processor {
         let deposit_receipt_info = next_account_info(account_info_iter)?;
         let owner_info = next_account_info(account_info_iter)?;
         let new_owner_info = next_account_info(account_info_iter)?;
+
+        // Validate: program owns `DepositReceipt`
+        check_account_owner(deposit_receipt_info, program_id)?;
 
         // Validate: owner must be a signer
         if !owner_info.is_signer {
@@ -388,6 +393,12 @@ impl Processor {
         Ok(())
     }
 
+    /// Transfers "pool" tokens to a token account owned by the DepositReceipt `owner`.
+    /// If this instruction is invoked during the `cool_down_period`, then fees will be
+    /// sent to a token account owned by the `fee_wallet`. ONLY the DepositReceipt `owner`
+    /// may invoke this instruction during the `cool_down_period`. Once the `cool_down_period`
+    /// has ended, the instruction is permissionless and no fees are subtracted from the
+    /// depositors original amount of "pool" tokens.
     pub fn process_claim_pool_tokens(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -406,15 +417,27 @@ impl Processor {
         // Validate: System program is correct native program
         check_system_program(system_program_info.key)?;
 
+        // Validate: program owns `StakePoolDepositStakeAuthority`
+        check_account_owner(deposit_stake_authority_info, program_id)?;
+
+        // Validate: program owns `DepositReceipt`
+        check_account_owner(deposit_receipt_info, program_id)?;
+
         {
-            // Validate: Owner must be signer
-            if !owner_info.is_signer {
-                return Err(StakeDepositInterceptorError::SignatureMissing.into());
-            }
+            let clock = Clock::get()?;
 
             let deposit_receipt_data = deposit_receipt_info.try_borrow_data()?;
             let deposit_receipt =
                 DepositReceipt::try_from_slice_unchecked(&deposit_receipt_data).unwrap();
+
+            let cool_down_end_time = u64::from(deposit_receipt.deposit_time)
+                .checked_add(deposit_receipt.cool_down_period.into())
+                .expect("overflow") as i64;
+
+            // Validate: Owner must be signer during cool down to prevent unintended fee payment
+            if cool_down_end_time > clock.unix_timestamp && !owner_info.is_signer {
+                return Err(StakeDepositInterceptorError::ActiveCooldown.into());
+            }
 
             // Validate: Owner must match that of DepositReceipt
             if &deposit_receipt.owner != owner_info.key {
@@ -433,6 +456,9 @@ impl Processor {
                 deposit_stake_authority_info.key,
                 &deposit_stake_authority,
             )?;
+
+            // Validate: DepositReceipt address must match expected PDA
+            check_deposit_receipt_address(program_id, deposit_receipt_info.key, &deposit_receipt)?;
 
             // Validate: StakePoolDepositStakeAuthority must match the same during creation of DepositReceipt
             if deposit_stake_authority_info.key
@@ -455,9 +481,16 @@ impl Processor {
                 return Err(StakeDepositInterceptorError::InvalidFeeTokenAccount.into());
             }
 
+            let destination_token_account =
+                Account::unpack(&destination_token_account_info.data.borrow())?;
+
+            // Validate: Destination token account must be owned by DepositRecipt `owner`
+            if destination_token_account.owner != deposit_receipt.owner {
+                return Err(StakeDepositInterceptorError::InvalidDestinationTokenAccount.into());
+            }
+
             let pool_mint = Mint::unpack(&pool_mint_info.data.borrow())?;
 
-            let clock = Clock::get()?;
             let fee_amount = deposit_receipt.calculate_fee_amount(clock.unix_timestamp);
 
             // Transfer fee tokens to fee token account

@@ -39,12 +39,12 @@ pub async fn clone_account_to_new_address(ctx: &mut ProgramTestContext, address:
         .await
         .unwrap()
         .unwrap();
-    let mut bad_deposit_stake_authority = AccountSharedData::new(
+    let mut bad_account = AccountSharedData::new(
         original.lamports,
         original.data.len(),
         &original.owner,
     );
-    bad_deposit_stake_authority.set_data_from_slice(&original.data);
-    ctx.set_account(&new_address, &bad_deposit_stake_authority);
+    bad_account.set_data_from_slice(&original.data);
+    ctx.set_account(&new_address, &bad_account);
     new_address
 }

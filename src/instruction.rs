@@ -494,10 +494,11 @@ pub fn create_claim_pool_tokens_instruction(
     deposit_stake_authority: &Pubkey,
     pool_mint: &Pubkey,
     token_program: &Pubkey,
+    after_cool_down: bool,
 ) -> Instruction {
     let accounts = vec![
         AccountMeta::new(*deposit_receipt_address, false),
-        AccountMeta::new(*owner, true),
+        AccountMeta::new(*owner, !after_cool_down),
         AccountMeta::new(*vault_token_account, false),
         AccountMeta::new(*destination_token_account, false),
         AccountMeta::new(*fee_token_account, false),

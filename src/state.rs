@@ -1,3 +1,4 @@
+use borsh::BorshSerialize;
 use bytemuck::{Pod, Zeroable};
 use jito_bytemuck::{
     AccountDeserialize,
@@ -50,7 +51,7 @@ impl StakePoolDepositStakeAuthority {
 
 /// Representation of some amount of claimable LST
 #[repr(C)]
-#[derive(Clone, Copy, AccountDeserialize, Debug, PartialEq, Pod, Zeroable)]
+#[derive(Clone, Copy, AccountDeserialize, BorshSerialize, Debug, PartialEq, Pod, Zeroable)]
 pub struct DepositReceipt {
     /// A generated seed for the PDA of this receipt
     pub base: Pubkey,
