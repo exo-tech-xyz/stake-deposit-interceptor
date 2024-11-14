@@ -78,6 +78,10 @@ impl Discriminator for DepositReceipt {
 }
 
 impl DepositReceipt {
+    /// Denominator for the fee basis points. This is also the
+    /// maximum allowed fee as the fee cannot exceed 100%.
+    pub const FEE_BPS_DENOMINATOR: u32 = 10_000;
+
     /// Given a current timestamp, calculate the amount of "pool" tokens
     /// are required to be sent to the fee_wallet's token account.
     pub fn calculate_fee_amount(&self, current_timestamp: i64) -> u64 {
@@ -95,7 +99,7 @@ impl DepositReceipt {
             .checked_mul(fee_rate_bps)
             .expect("overflow")
             // 10_000 is the equivalent of 100% in bps
-            .checked_div(10_000)
+            .checked_div(Self::FEE_BPS_DENOMINATOR.into())
             .expect("overflow");
         fee_amount
     }

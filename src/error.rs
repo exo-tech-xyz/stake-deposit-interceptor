@@ -44,4 +44,7 @@ pub enum StakeDepositInterceptorError {
     /// 13 : Cannot claim on behalf of owner until cool down has ended
     #[error("Only owner can claim during cool down period")]
     ActiveCooldown,
+    /// 14 : Fee rate exceeds the max limit
+    #[error("Fee rate exceeds the max limit")]
+    InitialFeeRateMaxExceeded,
 }

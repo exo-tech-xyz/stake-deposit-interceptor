@@ -350,3 +350,41 @@ async fn test_fail_incorrect_vault() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn test_fail_initial_fee_bps_cannot_exceed_10000() {
+    let (mut ctx, stake_pool_accounts) = program_test_context_with_stake_pool_state().await;
+
+    let fee_wallet = Keypair::new();
+    let authority = Keypair::new();
+    let cool_down_seconds = 100;
+    let initial_fee_bps = 10_001;
+    let ix =
+        stake_deposit_interceptor::instruction::create_init_deposit_stake_authority_instruction(
+            &stake_deposit_interceptor::id(),
+            &ctx.payer.pubkey(),
+            &stake_pool_accounts.stake_pool,
+            &stake_pool_accounts.pool_mint,
+            &ctx.payer.pubkey(),
+            &spl_stake_pool::id(),
+            &spl_token::id(),
+            &fee_wallet.pubkey(),
+            cool_down_seconds,
+            initial_fee_bps,
+            &authority.pubkey(),
+        );
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InitialFeeRateMaxExceeded as u32),
+    )
+    .await;
+}

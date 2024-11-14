@@ -67,6 +67,14 @@ impl Processor {
             return Err(StakeDepositInterceptorError::SignatureMissing.into());
         }
 
+        // Validate: `initial_fee_bps` cannot exceed 100%
+        if init_deposit_stake_authority_args
+            .initial_fee_bps
+            .gt(&DepositReceipt::FEE_BPS_DENOMINATOR)
+        {
+            return Err(StakeDepositInterceptorError::InitialFeeRateMaxExceeded.into());
+        }
+
         // Validate: StakePool must be owned by the correct program
         if stake_pool_info.owner != stake_pool_program_info.key {
             return Err(StakeDepositInterceptorError::InvalidStakePool.into());
