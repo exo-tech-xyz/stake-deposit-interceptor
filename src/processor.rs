@@ -124,7 +124,7 @@ impl Processor {
 
         // Create and initialize the Vault ATA
         invoke_signed(
-            &spl_associated_token_account::instruction::create_associated_token_account(
+            &spl_associated_token_account::instruction::create_associated_token_account_idempotent(
                 &payer_info.key,              // Funding account
                 &deposit_stake_authority_pda, // Owner of the ATA
                 &stake_pool.pool_mint,        // Mint address for the token
