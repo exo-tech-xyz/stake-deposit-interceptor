@@ -6,11 +6,13 @@ use helpers::{
 use jito_bytemuck::AccountDeserialize;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
+    account::AccountSharedData,
     instruction::{AccountMeta, Instruction, InstructionError},
     program_pack::Pack,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    system_program,
     transaction::Transaction,
 };
 use spl_associated_token_account::get_associated_token_address;
@@ -140,6 +142,51 @@ async fn test_fail_invalid_system_program() {
     );
 
     assert_transaction_err(&mut ctx, tx, InstructionError::IncorrectProgramId).await;
+}
+
+#[tokio::test]
+async fn test_fail_invalid_deposit_stake_authority_owner() {
+    let (mut ctx, stake_pool_accounts, authority, init_ix) = setup_with_ix().await;
+    let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
+        &stake_deposit_interceptor::id(),
+        &stake_pool_accounts.stake_pool,
+    );
+    let bad_account = AccountSharedData::new(1, 0, &stake_deposit_interceptor::id());
+    ctx.set_account(&deposit_stake_authority_pubkey, &bad_account);
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    assert_transaction_err(&mut ctx, tx.clone(), InstructionError::InvalidAccountOwner).await;
+}
+
+#[tokio::test]
+async fn test_fail_deposit_stake_authority_not_empty() {
+    let (mut ctx, stake_pool_accounts, authority, init_ix) = setup_with_ix().await;
+    let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
+        &stake_deposit_interceptor::id(),
+        &stake_pool_accounts.stake_pool,
+    );
+
+    let tx = Transaction::new_signed_with_payer(
+        &[init_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    let bad_account = AccountSharedData::new(1, 1, &system_program::id());
+    ctx.set_account(&deposit_stake_authority_pubkey, &bad_account);
+    assert_transaction_err(
+        &mut ctx,
+        tx.clone(),
+        InstructionError::AccountAlreadyInitialized,
+    )
+    .await;
 }
 
 #[tokio::test]

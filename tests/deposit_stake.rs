@@ -1,15 +1,15 @@
 mod helpers;
 
 use helpers::{
-    airdrop_lamports, assert_transaction_err, clone_account_to_new_address,
-    create_stake_account, create_stake_deposit_authority, create_token_account,
-    create_validator_and_add_to_pool, delegate_stake_account, get_account,
-    get_account_data_deserialized, program_test_context_with_stake_pool_state,
-    stake_pool_update_all, update_stake_deposit_authority, StakePoolAccounts,
-    ValidatorStakeAccount,
+    airdrop_lamports, assert_transaction_err, clone_account_to_new_address, create_stake_account,
+    create_stake_deposit_authority, create_token_account, create_validator_and_add_to_pool,
+    delegate_stake_account, get_account, get_account_data_deserialized,
+    program_test_context_with_stake_pool_state, stake_pool_update_all,
+    update_stake_deposit_authority, StakePoolAccounts, ValidatorStakeAccount,
 };
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
+    account::AccountSharedData,
     borsh1::try_from_slice_unchecked,
     instruction::{AccountMeta, Instruction, InstructionError},
     native_token::LAMPORTS_PER_SOL,
@@ -18,6 +18,7 @@ use solana_sdk::{
     signature::Keypair,
     signer::Signer,
     stake::{self},
+    system_program,
     transaction::{Transaction, TransactionError},
     transport::TransportError,
 };
@@ -351,6 +352,7 @@ async fn success_error_with_slippage() {
 async fn setup_with_ix() -> (
     ProgramTestContext,
     StakePoolAccounts,
+    Pubkey,
     Keypair,
     Vec<Instruction>,
 ) {
@@ -386,9 +388,18 @@ async fn setup_with_ix() -> (
             &spl_token::id(),
             &base,
         );
+
+    let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
+        &stake_deposit_interceptor::id(),
+        &depositor.pubkey(),
+        &stake_pool_accounts.stake_pool,
+        &base,
+    );
+
     (
         ctx,
         stake_pool_accounts,
+        deposit_receipt_pda,
         depositor,
         deposit_stake_instructions,
     )
@@ -396,7 +407,8 @@ async fn setup_with_ix() -> (
 
 #[tokio::test]
 async fn test_fail_invalid_system_program() {
-    let (mut ctx, _stake_pool_accounts, depositor, mut instructions) = setup_with_ix().await;
+    let (mut ctx, _stake_pool_accounts, _deposit_receipt_pda, depositor, mut instructions) =
+        setup_with_ix().await;
     instructions[2].accounts[18] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
 
     let tx = Transaction::new_signed_with_payer(
@@ -411,7 +423,8 @@ async fn test_fail_invalid_system_program() {
 
 #[tokio::test]
 async fn test_fail_invalid_deposit_stake_authority_owner() {
-    let (mut ctx, _stake_pool_accounts, depositor, mut instructions) = setup_with_ix().await;
+    let (mut ctx, _stake_pool_accounts, _deposit_receipt_pda, depositor, mut instructions) =
+        setup_with_ix().await;
     instructions[2].accounts[5] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
 
     let tx = Transaction::new_signed_with_payer(
@@ -426,7 +439,8 @@ async fn test_fail_invalid_deposit_stake_authority_owner() {
 
 #[tokio::test]
 async fn test_fail_invalid_stake_deposit_authority_address() {
-    let (mut ctx, stake_pool_accounts, depositor, mut instructions) = setup_with_ix().await;
+    let (mut ctx, stake_pool_accounts, _deposit_receipt_pda, depositor, mut instructions) =
+        setup_with_ix().await;
     let (deposit_stake_authority_pda, _bump) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
@@ -453,7 +467,8 @@ async fn test_fail_invalid_stake_deposit_authority_address() {
 
 #[tokio::test]
 async fn test_fail_invalid_pool_token_account() {
-    let (mut ctx, stake_pool_accounts, depositor, mut instructions) = setup_with_ix().await;
+    let (mut ctx, stake_pool_accounts, _deposit_receipt_pda, depositor, mut instructions) =
+        setup_with_ix().await;
     let (deposit_stake_authority_pda, _bump) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
@@ -479,8 +494,46 @@ async fn test_fail_invalid_pool_token_account() {
 }
 
 #[tokio::test]
+async fn test_fail_invalid_deposit_receipt_owner() {
+    let (mut ctx, _stake_pool_accounts, deposit_receipt_pda, depositor, instructions) =
+        setup_with_ix().await;
+    let bad_account = AccountSharedData::new(1, 0, &stake_deposit_interceptor::id());
+    ctx.set_account(&deposit_receipt_pda, &bad_account);
+
+    let tx = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&depositor.pubkey()),
+        &[&depositor],
+        ctx.last_blockhash,
+    );
+
+    assert_transaction_err(&mut ctx, tx.clone(), InstructionError::InvalidAccountOwner).await;
+}
+
+#[tokio::test]
+async fn test_fail_deposit_receipt_not_empty() {
+    let (mut ctx, _stake_pool_accounts, deposit_receipt_pda, depositor, mut instructions) = setup_with_ix().await;
+
+    let tx = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&depositor.pubkey()),
+        &[&depositor],
+        ctx.last_blockhash,
+    );
+
+    let bad_account = AccountSharedData::new(1, 1, &system_program::id());
+    ctx.set_account(&deposit_receipt_pda, &bad_account);
+    assert_transaction_err(
+        &mut ctx,
+        tx.clone(),
+        InstructionError::AccountAlreadyInitialized,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_fail_invalid_deposit_receipt() {
-    let (mut ctx, _stake_pool_accounts, depositor, mut instructions) = setup_with_ix().await;
+    let (mut ctx, _stake_pool_accounts, _deposit_receipt_pda, depositor, mut instructions) = setup_with_ix().await;
     instructions[2].accounts[2] = AccountMeta::new(Pubkey::new_unique(), false);
 
     let tx = Transaction::new_signed_with_payer(

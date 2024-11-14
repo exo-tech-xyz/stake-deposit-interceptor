@@ -9,7 +9,7 @@ use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
-    program::invoke_signed,
+    program::{invoke, invoke_signed},
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
@@ -59,6 +59,8 @@ impl Processor {
 
         // Validate: System program is correct native program
         check_system_program(system_program_info.key)?;
+        // Validate: StakePoolDepositStakeAuthority should be owned by system program and not initialized
+        check_system_account(deposit_stake_authority_info, true)?;
 
         // Validate: authority and StakePool's manager signed the TX
         if !authority.is_signer || !stake_pool_manager_info.is_signer {
@@ -255,6 +257,8 @@ impl Processor {
         check_system_program(system_program_info.key)?;
         // Validate `StakePoolDepositStakeAuthority` is owned by current program.
         check_account_owner(deposit_stake_authority_info, program_id)?;
+        // Validate: DepositReceipt should be owned by system program and not initialized
+        check_system_account(deposit_receipt_info, true)?;
 
         // NOTE: we assume that stake-pool program makes all of the assertions that the SPL stake-pool program does.
 
@@ -591,6 +595,26 @@ fn check_system_program(program_id: &Pubkey) -> Result<(), ProgramError> {
     }
 }
 
+/// Checks the account is owned by the System program and does not have any existing data.
+fn check_system_account(account_info: &AccountInfo, is_writable: bool) -> Result<(), ProgramError> {
+    if account_info.owner.ne(&system_program::id()) {
+        msg!("Account is not owned by the system program");
+        return Err(ProgramError::InvalidAccountOwner);
+    }
+
+    if !account_info.data_is_empty() {
+        msg!("Account data is not empty");
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+
+    if is_writable && !account_info.is_writable {
+        msg!("Account is not writable");
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    Ok(())
+}
+
 /// Create a PDA account for the given seeds
 fn create_pda_account<'a>(
     payer: &AccountInfo<'a>,
@@ -601,21 +625,52 @@ fn create_pda_account<'a>(
     new_pda_account: &AccountInfo<'a>,
     new_pda_signer_seeds: &[&[u8]],
 ) -> ProgramResult {
-    invoke_signed(
-        &system_instruction::create_account(
-            payer.key,
-            new_pda_account.key,
-            rent.minimum_balance(space).max(1),
-            space as u64,
-            owner,
-        ),
-        &[
-            payer.clone(),
-            new_pda_account.clone(),
-            system_program.clone(),
-        ],
-        &[new_pda_signer_seeds],
-    )
+    if new_pda_account.lamports() > 0 {
+        // someone can transfer lamports to accounts before they're initialized
+        // in that case, creating the account won't work.
+        // in order to get around it, you need to find the account with enough lamports to be rent exempt,
+        // then allocate the required space and set the owner to the current program
+        let required_lamports = rent
+            .minimum_balance(space)
+            .max(1)
+            .saturating_sub(new_pda_account.lamports());
+        if required_lamports > 0 {
+            invoke(
+                &system_instruction::transfer(payer.key, new_pda_account.key, required_lamports),
+                &[
+                    payer.clone(),
+                    new_pda_account.clone(),
+                    system_program.clone(),
+                ],
+            )?;
+        }
+        invoke_signed(
+            &system_instruction::allocate(new_pda_account.key, space as u64),
+            &[new_pda_account.clone(), system_program.clone()],
+            &[new_pda_signer_seeds],
+        )?;
+        invoke_signed(
+            &system_instruction::assign(new_pda_account.key, owner),
+            &[new_pda_account.clone(), system_program.clone()],
+            &[new_pda_signer_seeds],
+        )
+    } else {
+        invoke_signed(
+            &system_instruction::create_account(
+                payer.key,
+                new_pda_account.key,
+                rent.minimum_balance(space).max(1),
+                space as u64,
+                owner,
+            ),
+            &[
+                payer.clone(),
+                new_pda_account.clone(),
+                system_program.clone(),
+            ],
+            &[new_pda_signer_seeds],
+        )
+    }
 }
 
 /// Invokes the `DepositStake` instruction for the given stake-pool program.
