@@ -77,6 +77,7 @@ pub enum StakeDepositInterceptorInstruction {
     ///
     ///   0. `[w]` StakePoolDepositStakeAuthority PDA to be updated
     ///   1. `[s]` Authority
+    ///   2. `[s]` (Optional) New authority
     UpdateStakePoolDepositStakeAuthority(UpdateStakePoolDepositStakeAuthorityArgs),
     ///   Deposit some stake into the pool. The "pool" token minted is held by the DepositReceipt's
     ///   Vault token Account rather than a token Account designated by the depositor.
