@@ -33,6 +33,8 @@ pub struct StakePoolDepositStakeAuthority {
     pub fee_wallet: Pubkey,
     /// Bump seed for derivation
     pub bump_seed: u8,
+    // reserved bytes 
+    reserved: [u8; 256],
 }
 
 impl Discriminator for StakePoolDepositStakeAuthority {
@@ -68,6 +70,8 @@ pub struct DepositReceipt {
     pub initial_fee_bps: PodU32,
     /// Bump seed for derivation
     pub bump_seed: u8,
+    // reserved bytes 
+    reserved: [u8; 256],
 }
 
 impl Discriminator for DepositReceipt {
@@ -121,6 +125,7 @@ mod tests {
             cool_down_seconds: PodU64::from(1_000),
             initial_fee_bps: PodU32::from(100),
             bump_seed: 0,
+            reserved: [0u8; 256],
         };
 
         // fee rate is initial rate of 100bps = 10_000
