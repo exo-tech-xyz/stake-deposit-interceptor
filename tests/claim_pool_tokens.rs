@@ -2,9 +2,8 @@ mod helpers;
 
 use std::{mem, ops::Add};
 
-use borsh::BorshSerialize;
 use helpers::{
-    airdrop_lamports, clone_account_to_new_address, create_stake_account,
+    airdrop_lamports, assert_transaction_err, clone_account_to_new_address, create_stake_account,
     create_stake_deposit_authority, create_token_account, create_validator_and_add_to_pool,
     delegate_stake_account, get_account, get_account_data_deserialized,
     program_test_context_with_stake_pool_state, set_clock_time, stake_pool_update_all,
@@ -23,8 +22,7 @@ use solana_sdk::{
     signature::Keypair,
     signer::Signer,
     stake::{self},
-    transaction::{Transaction, TransactionError},
-    transport::TransportError,
+    transaction::Transaction,
 };
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account,
@@ -405,23 +403,12 @@ async fn test_fail_permissionless_claim_during_cool_down() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(StakeDepositInterceptorError::ActiveCooldown as u32)
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::ActiveCooldown as u32),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -437,20 +424,7 @@ async fn test_fail_invalid_system_program() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(error, InstructionError::IncorrectProgramId);
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(&mut ctx, tx, InstructionError::IncorrectProgramId).await;
 }
 
 #[tokio::test]
@@ -467,30 +441,17 @@ async fn test_fail_invalid_owner() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(
-                    StakeDepositInterceptorError::InvalidDepositReceiptOwner as u32
-                )
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidDepositReceiptOwner as u32),
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn test_fail_invalid_stake_deposit_authority_owner() {
-    let (mut ctx, stake_pool_accounts, depositor, deposit_receipt_pda, mut instructions) =
+    let (mut ctx, stake_pool_accounts, depositor, _deposit_receipt_pda, instructions) =
         setup_with_ix().await;
     let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::id(),
@@ -516,20 +477,7 @@ async fn test_fail_invalid_stake_deposit_authority_owner() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(error, InstructionError::IncorrectProgramId);
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(&mut ctx, tx, InstructionError::IncorrectProgramId).await;
 }
 
 #[tokio::test]
@@ -550,25 +498,14 @@ async fn test_fail_invalid_stake_deposit_authority_address() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(
-                    StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32
-                )
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(
+            StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32,
+        ),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -595,20 +532,7 @@ async fn test_fail_invalid_deposit_receipt_owner() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(error, InstructionError::IncorrectProgramId);
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(&mut ctx, tx, InstructionError::IncorrectProgramId).await;
 }
 
 #[tokio::test]
@@ -625,30 +549,17 @@ async fn test_fail_invalid_deposit_receipt_address() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(
-                    StakeDepositInterceptorError::InvalidDepositReceipt as u32
-                )
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidDepositReceipt as u32),
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn test_fail_invalid_deposit_receipt() {
-    let (mut ctx, _stake_pool_accounts, depositor, deposit_receipt_pda, mut instructions) =
+    let (mut ctx, _stake_pool_accounts, depositor, deposit_receipt_pda, instructions) =
         setup_with_ix().await;
     // overwrite the `stake_pool_deposit_stake_authority` of the DepositReceipt to a bad value
     let mut original_deposit_receipt = ctx
@@ -679,25 +590,14 @@ async fn test_fail_invalid_deposit_receipt() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(
-                    StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32
-                )
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(
+            StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32,
+        ),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -713,23 +613,12 @@ async fn test_fail_invalid_vault_address() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(StakeDepositInterceptorError::InvalidVault as u32)
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidVault as u32),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -751,25 +640,12 @@ async fn test_fail_fee_token_account_not_owned_by_fee_wallet() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(
-                    StakeDepositInterceptorError::InvalidFeeTokenAccount as u32
-                )
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidFeeTokenAccount as u32),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -788,23 +664,12 @@ async fn test_fail_destination_token_account_not_owned_by_owner() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(
-                    StakeDepositInterceptorError::InvalidDestinationTokenAccount as u32
-                )
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(
+            StakeDepositInterceptorError::InvalidDestinationTokenAccount as u32,
+        ),
+    )
+    .await;
 }

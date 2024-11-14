@@ -1,20 +1,18 @@
 mod helpers;
 
 use helpers::{
-    clone_account_to_new_address, create_stake_deposit_authority,
+    assert_transaction_err, clone_account_to_new_address, create_stake_deposit_authority,
     program_test_context_with_stake_pool_state, StakePoolAccounts,
 };
 use jito_bytemuck::AccountDeserialize;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    account::AccountSharedData,
     borsh1::try_from_slice_unchecked,
     instruction::{AccountMeta, Instruction, InstructionError},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    transaction::{Transaction, TransactionError},
-    transport::TransportError,
+    transaction::Transaction,
 };
 use stake_deposit_interceptor::{
     error::StakeDepositInterceptorError, instruction::derive_stake_pool_deposit_stake_authority,
@@ -156,20 +154,7 @@ async fn test_fail_program_does_not_own_pda_account() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(error, InstructionError::IncorrectProgramId);
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(&mut ctx, tx, InstructionError::IncorrectProgramId).await;
 }
 
 #[tokio::test]
@@ -184,23 +169,12 @@ async fn test_fail_authority_not_signer() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32)
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -216,23 +190,12 @@ async fn test_fail_authority_incorrect() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(StakeDepositInterceptorError::InvalidAuthority as u32)
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidAuthority as u32),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -252,25 +215,14 @@ async fn test_fail_invalid_stake_deposit_authority_address() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(
-                    StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32
-                )
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(
+            StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32,
+        ),
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -285,21 +237,10 @@ async fn test_fail_new_authority_not_signer() {
         ctx.last_blockhash,
     );
 
-    let transaction_error: TransportError = ctx
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .err()
-        .expect("Should have errored")
-        .into();
-
-    match transaction_error {
-        TransportError::TransactionError(TransactionError::InstructionError(_, error)) => {
-            assert_eq!(
-                error,
-                InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32)
-            );
-        }
-        _ => panic!("Wrong error"),
-    };
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32),
+    )
+    .await;
 }
