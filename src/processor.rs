@@ -158,14 +158,14 @@ impl Processor {
         deposit_stake_authority.fee_wallet = init_deposit_stake_authority_args.fee_wallet;
         deposit_stake_authority.cool_down_seconds =
             init_deposit_stake_authority_args.cool_down_seconds.into();
-        deposit_stake_authority.inital_fee_rate =
-            init_deposit_stake_authority_args.initial_fee_rate.into();
+        deposit_stake_authority.inital_fee_bps =
+            init_deposit_stake_authority_args.initial_fee_bps.into();
         deposit_stake_authority.bump_seed = bump_seed;
 
         Ok(())
     }
 
-    /// Update `StakePoolDepositStakeAuthority` authority, fee_wallet, cool_down_seconds, and/or initial_fee_rate.
+    /// Update `StakePoolDepositStakeAuthority` authority, fee_wallet, cool_down_seconds, and/or initial_fee_bps.
     /// ONLY accessible by the currnet authority.
     pub fn process_update_deposit_stake_authority(
         program_id: &Pubkey,
@@ -214,8 +214,8 @@ impl Processor {
         if let Some(cool_down_seconds) = update_deposit_stake_authority_args.cool_down_seconds {
             deposit_stake_authority.cool_down_seconds = cool_down_seconds.into();
         }
-        if let Some(initial_fee_rate) = update_deposit_stake_authority_args.initial_fee_rate {
-            deposit_stake_authority.inital_fee_rate = initial_fee_rate.into();
+        if let Some(initial_fee_bps) = update_deposit_stake_authority_args.initial_fee_bps {
+            deposit_stake_authority.inital_fee_bps = initial_fee_bps.into();
         }
         if let Some(fee_wallet) = update_deposit_stake_authority_args.fee_wallet {
             deposit_stake_authority.fee_wallet = fee_wallet;
@@ -354,7 +354,7 @@ impl Processor {
         deposit_receipt.deposit_time = clock.unix_timestamp.unsigned_abs().into();
         deposit_receipt.lst_amount = pool_tokens_minted.into();
         deposit_receipt.cool_down_seconds = deposit_stake_authority.cool_down_seconds;
-        deposit_receipt.initial_fee_rate = deposit_stake_authority.inital_fee_rate;
+        deposit_receipt.initial_fee_bps = deposit_stake_authority.inital_fee_bps;
         deposit_receipt.bump_seed = bump_seed;
 
         Ok(())

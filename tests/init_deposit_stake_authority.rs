@@ -28,7 +28,7 @@ async fn test_init_deposit_stake_authority() {
     let fee_wallet = Keypair::new();
     let authority = Keypair::new();
     let cool_down_seconds = 100;
-    let initial_fee_rate = 20;
+    let initial_fee_bps = 20;
     let init_ix =
         stake_deposit_interceptor::instruction::create_init_deposit_stake_authority_instruction(
             &stake_deposit_interceptor::id(),
@@ -40,7 +40,7 @@ async fn test_init_deposit_stake_authority() {
             &spl_token::id(),
             &fee_wallet.pubkey(),
             cool_down_seconds,
-            initial_fee_rate,
+            initial_fee_bps,
             &authority.pubkey(),
         );
 
@@ -86,9 +86,9 @@ async fn test_init_deposit_stake_authority() {
 
     assert_eq!(deposit_stake_authority.authority, authority.pubkey());
     let actual_cool_down_seconds: u64 = deposit_stake_authority.cool_down_seconds.into();
-    let actual_initial_fee_rate: u32 = deposit_stake_authority.inital_fee_rate.into();
+    let actual_initial_fee_bps: u32 = deposit_stake_authority.inital_fee_bps.into();
     assert_eq!(actual_cool_down_seconds, cool_down_seconds);
-    assert_eq!(actual_initial_fee_rate, initial_fee_rate);
+    assert_eq!(actual_initial_fee_bps, initial_fee_bps);
     assert_eq!(
         deposit_stake_authority.stake_pool,
         stake_pool_accounts.stake_pool
@@ -111,7 +111,7 @@ async fn setup_with_ix() -> (ProgramTestContext, StakePoolAccounts, Keypair, Ins
     let fee_wallet = Keypair::new();
     let authority = Keypair::new();
     let cool_down_seconds = 100;
-    let initial_fee_rate = 20;
+    let initial_fee_bps = 20;
     let ix =
         stake_deposit_interceptor::instruction::create_init_deposit_stake_authority_instruction(
             &stake_deposit_interceptor::id(),
@@ -123,7 +123,7 @@ async fn setup_with_ix() -> (ProgramTestContext, StakePoolAccounts, Keypair, Ins
             &spl_token::id(),
             &fee_wallet.pubkey(),
             cool_down_seconds,
-            initial_fee_rate,
+            initial_fee_bps,
             &authority.pubkey(),
         );
     (ctx, stake_pool_accounts, authority, ix)

@@ -31,7 +31,7 @@ pub struct StakePoolDepositStakeAuthority {
     /// The duration after a `DepositStake` in which the depositor would owe fees.
     pub cool_down_seconds: PodU64,
     /// The initial fee rate (in bps) proceeding a `DepositStake` (i.e. at T0).
-    pub inital_fee_rate: PodU32,
+    pub inital_fee_bps: PodU32,
     /// Owner of the fee token_account
     pub fee_wallet: Pubkey,
     /// Bump seed for derivation
@@ -68,7 +68,7 @@ pub struct DepositReceipt {
     /// Cool down period at time of deposit.
     pub cool_down_seconds: PodU64,
     /// Initial fee rate at time of deposit
-    pub initial_fee_rate: PodU32,
+    pub initial_fee_bps: PodU32,
     /// Bump seed for derivation
     pub bump_seed: u8,
 }
@@ -89,7 +89,7 @@ impl DepositReceipt {
             return 0;
         }
         let fee_rate_bps =
-            u64::from(u32::from(self.initial_fee_rate)) * cool_down_time_left / cool_down_seconds;
+            u64::from(u32::from(self.initial_fee_bps)) * cool_down_time_left / cool_down_seconds;
         let total_amount = u64::from(self.lst_amount);
         let fee_amount = total_amount
             .checked_mul(fee_rate_bps)
@@ -115,7 +115,7 @@ mod tests {
             deposit_time: PodU64::from(1_000),
             lst_amount: PodU64::from(1_000_000),
             cool_down_seconds: PodU64::from(1_000),
-            initial_fee_rate: PodU32::from(100),
+            initial_fee_bps: PodU32::from(100),
             bump_seed: 0,
         };
 

@@ -12,7 +12,7 @@ use spl_associated_token_account::get_associated_token_address;
 pub struct InitStakePoolDepositStakeAuthorityArgs {
     pub fee_wallet: Pubkey,
     pub cool_down_seconds: u64,
-    pub initial_fee_rate: u32,
+    pub initial_fee_bps: u32,
     pub bump_seed: u8,
 }
 
@@ -22,7 +22,7 @@ pub struct InitStakePoolDepositStakeAuthorityArgs {
 pub struct UpdateStakePoolDepositStakeAuthorityArgs {
     pub fee_wallet: Option<Pubkey>,
     pub cool_down_seconds: Option<u64>,
-    pub initial_fee_rate: Option<u32>,
+    pub initial_fee_bps: Option<u32>,
 }
 
 /// Arguments for DepositStake.
@@ -202,7 +202,7 @@ pub fn create_init_deposit_stake_authority_instruction(
     token_program_id: &Pubkey,
     fee_wallet: &Pubkey,
     cool_down_seconds: u64,
-    initial_fee_rate: u32,
+    initial_fee_bps: u32,
     authority: &Pubkey,
 ) -> Instruction {
     let (deposit_stake_authority_pubkey, bump_seed) =
@@ -210,7 +210,7 @@ pub fn create_init_deposit_stake_authority_instruction(
     let vault_ata = get_associated_token_address(&deposit_stake_authority_pubkey, stake_pool_mint);
     let args = InitStakePoolDepositStakeAuthorityArgs {
         fee_wallet: *fee_wallet,
-        initial_fee_rate,
+        initial_fee_bps,
         cool_down_seconds,
         bump_seed,
     };
@@ -244,13 +244,13 @@ pub fn create_update_deposit_stake_authority_instruction(
     new_authority: Option<Pubkey>,
     fee_wallet: Option<Pubkey>,
     cool_down_seconds: Option<u64>,
-    initial_fee_rate: Option<u32>,
+    initial_fee_bps: Option<u32>,
 ) -> Instruction {
     let (deposit_stake_authority_pubkey, _bump_seed) =
         derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
     let args = UpdateStakePoolDepositStakeAuthorityArgs {
         fee_wallet: fee_wallet,
-        initial_fee_rate: initial_fee_rate,
+        initial_fee_bps,
         cool_down_seconds,
     };
     let mut accounts = vec![

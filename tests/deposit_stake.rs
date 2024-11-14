@@ -245,8 +245,8 @@ async fn test_deposit_stake() {
         deposit_stake_authority.cool_down_seconds
     );
     assert_eq!(
-        deposit_receipt.initial_fee_rate,
-        deposit_stake_authority.inital_fee_rate
+        deposit_receipt.initial_fee_bps,
+        deposit_stake_authority.inital_fee_bps
     );
     let deposit_time: u64 = deposit_receipt.deposit_time.into();
     assert!(deposit_time > 0);

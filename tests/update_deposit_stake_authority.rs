@@ -45,7 +45,7 @@ async fn test_update_deposit_stake_authority() {
     let fee_wallet = Keypair::new();
     let new_authority = Keypair::new();
     let cool_down_seconds = 78;
-    let initial_fee_rate = 20;
+    let initial_fee_bps = 20;
 
     let update_ix =
         stake_deposit_interceptor::instruction::create_update_deposit_stake_authority_instruction(
@@ -55,7 +55,7 @@ async fn test_update_deposit_stake_authority() {
             Some(new_authority.pubkey()),
             Some(fee_wallet.pubkey()),
             Some(cool_down_seconds),
-            Some(initial_fee_rate),
+            Some(initial_fee_bps),
         );
 
     let tx = Transaction::new_signed_with_payer(
@@ -83,9 +83,9 @@ async fn test_update_deposit_stake_authority() {
         StakePoolDepositStakeAuthority::try_from_slice_unchecked(&account.data.as_slice()).unwrap();
 
     let actual_cool_down_seconds: u64 = deposit_stake_authority.cool_down_seconds.into();
-    let actual_initial_fee_rate: u32 = deposit_stake_authority.inital_fee_rate.into();
+    let actual_initial_fee_bps: u32 = deposit_stake_authority.inital_fee_bps.into();
     assert_eq!(actual_cool_down_seconds, cool_down_seconds);
-    assert_eq!(actual_initial_fee_rate, initial_fee_rate);
+    assert_eq!(actual_initial_fee_bps, initial_fee_bps);
     assert_eq!(deposit_stake_authority.fee_wallet, fee_wallet.pubkey());
     assert_eq!(deposit_stake_authority.authority, new_authority.pubkey());
 }
@@ -121,7 +121,7 @@ async fn setup_with_ix() -> (
     let fee_wallet = Keypair::new();
     let new_authority = Keypair::new();
     let cool_down_seconds = 78;
-    let initial_fee_rate = 20;
+    let initial_fee_bps = 20;
 
     let update_ix =
         stake_deposit_interceptor::instruction::create_update_deposit_stake_authority_instruction(
@@ -131,7 +131,7 @@ async fn setup_with_ix() -> (
             Some(new_authority.pubkey()),
             Some(fee_wallet.pubkey()),
             Some(cool_down_seconds),
-            Some(initial_fee_rate),
+            Some(initial_fee_bps),
         );
     (
         ctx,

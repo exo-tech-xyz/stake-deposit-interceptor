@@ -15,7 +15,7 @@ pub async fn create_stake_deposit_authority(
         fee_wallet = *fee_wallet_address;
     }
     let cool_down_seconds = 100;
-    let initial_fee_rate = 20;
+    let initial_fee_bps = 20;
     let init_ix =
         stake_deposit_interceptor::instruction::create_init_deposit_stake_authority_instruction(
             &stake_deposit_interceptor::id(),
@@ -27,7 +27,7 @@ pub async fn create_stake_deposit_authority(
             &spl_token::id(),
             &fee_wallet,
             cool_down_seconds,
-            initial_fee_rate,
+            initial_fee_bps,
             &authority.pubkey(),
         );
 
