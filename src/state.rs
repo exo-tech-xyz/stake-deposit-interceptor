@@ -1,9 +1,6 @@
 use borsh::BorshSerialize;
 use bytemuck::{Pod, Zeroable};
-use jito_bytemuck::{
-    AccountDeserialize,
-    Discriminator,
-};
+use jito_bytemuck::{AccountDeserialize, Discriminator};
 use solana_program::pubkey::Pubkey;
 use spl_pod::primitives::{PodU32, PodU64};
 
@@ -86,21 +83,24 @@ impl DepositReceipt {
     /// are required to be sent to the fee_wallet's token account.
     pub fn calculate_fee_amount(&self, current_timestamp: i64) -> u64 {
         let cool_down_seconds = u64::from(self.cool_down_seconds);
-        let end_cool_down_time = u64::from(self.deposit_time) + cool_down_seconds;
+        let end_cool_down_time = u64::from(self.deposit_time)
+            .checked_add(cool_down_seconds)
+            .expect("overflow");
         let cool_down_time_left =
             end_cool_down_time.saturating_sub(current_timestamp.unsigned_abs());
         if cool_down_time_left == 0 {
             return 0;
         }
-        let fee_rate_bps =
-            u64::from(u32::from(self.initial_fee_bps)) * cool_down_time_left / cool_down_seconds;
+        let fee_rate_bps = u64::from(u32::from(self.initial_fee_bps))
+            .checked_mul(cool_down_time_left)
+            .expect("overflow")
+            .div_ceil(cool_down_seconds);
         let total_amount = u64::from(self.lst_amount);
         let fee_amount = total_amount
             .checked_mul(fee_rate_bps)
             .expect("overflow")
             // 10_000 is the equivalent of 100% in bps
-            .checked_div(Self::FEE_BPS_DENOMINATOR.into())
-            .expect("overflow");
+            .div_ceil(Self::FEE_BPS_DENOMINATOR.into());
         fee_amount
     }
 }
@@ -133,8 +133,8 @@ mod tests {
         assert_eq!(deposit_receipt.calculate_fee_amount(2_000), 0);
         assert_eq!(deposit_receipt.calculate_fee_amount(2_001), 0);
 
-        // Fee should be round down to 0
+        // Fee should be round up to 1
         deposit_receipt.lst_amount = PodU64::from(1);
-        assert_eq!(deposit_receipt.calculate_fee_amount(1_000), 0);
+        assert_eq!(deposit_receipt.calculate_fee_amount(1_000), 1);
     }
 }
