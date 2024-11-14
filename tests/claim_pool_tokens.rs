@@ -252,7 +252,7 @@ async fn test_success_claim_pool_tokens() {
     );
 
     let clock: Clock = ctx.banks_client.get_sysvar().await.unwrap();
-    let half_cool_down = u64::from(deposit_receipt.cool_down_period).saturating_div(2);
+    let half_cool_down = u64::from(deposit_receipt.cool_down_seconds).saturating_div(2);
     let clock_time = clock.unix_timestamp + half_cool_down as i64;
     set_clock_time(&mut ctx, clock_time).await;
 
@@ -374,7 +374,7 @@ async fn test_success_permissionless_claim() {
 
     let clock: Clock = ctx.banks_client.get_sysvar().await.unwrap();
     let clock_time =
-        clock.unix_timestamp + u64::from(deposit_receipt.cool_down_period).add(10) as i64;
+        clock.unix_timestamp + u64::from(deposit_receipt.cool_down_seconds).add(10) as i64;
     set_clock_time(&mut ctx, clock_time).await;
 
     ctx.banks_client.process_transaction(tx).await.unwrap();

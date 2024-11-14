@@ -241,8 +241,8 @@ async fn test_deposit_stake() {
     assert_eq!(deposit_receipt.bump_seed, bump_seed);
     assert_eq!(deposit_receipt.lst_amount, PodU64::from(pool_tokens_amount));
     assert_eq!(
-        deposit_receipt.cool_down_period,
-        deposit_stake_authority.cool_down_period
+        deposit_receipt.cool_down_seconds,
+        deposit_stake_authority.cool_down_seconds
     );
     assert_eq!(
         deposit_receipt.initial_fee_rate,

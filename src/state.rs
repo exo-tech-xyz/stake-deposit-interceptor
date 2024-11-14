@@ -29,7 +29,7 @@ pub struct StakePoolDepositStakeAuthority {
     /// Program ID for the stake_pool
     pub stake_pool_program_id: Pubkey,
     /// The duration after a `DepositStake` in which the depositor would owe fees.
-    pub cool_down_period: PodU64,
+    pub cool_down_seconds: PodU64,
     /// The initial fee rate (in bps) proceeding a `DepositStake` (i.e. at T0).
     pub inital_fee_rate: PodU32,
     /// Owner of the fee token_account
@@ -66,7 +66,7 @@ pub struct DepositReceipt {
     /// Total amount of claimable lst that was minted during Deposit
     pub lst_amount: PodU64,
     /// Cool down period at time of deposit.
-    pub cool_down_period: PodU64,
+    pub cool_down_seconds: PodU64,
     /// Initial fee rate at time of deposit
     pub initial_fee_rate: PodU32,
     /// Bump seed for derivation
@@ -81,15 +81,15 @@ impl DepositReceipt {
     /// Given a current timestamp, calculate the amount of "pool" tokens
     /// are required to be sent to the fee_wallet's token account.
     pub fn calculate_fee_amount(&self, current_timestamp: i64) -> u64 {
-        let cool_down_period = u64::from(self.cool_down_period);
-        let end_cool_down_time = u64::from(self.deposit_time) + cool_down_period;
+        let cool_down_seconds = u64::from(self.cool_down_seconds);
+        let end_cool_down_time = u64::from(self.deposit_time) + cool_down_seconds;
         let cool_down_time_left =
             end_cool_down_time.saturating_sub(current_timestamp.unsigned_abs());
         if cool_down_time_left == 0 {
             return 0;
         }
         let fee_rate_bps =
-            u64::from(u32::from(self.initial_fee_rate)) * cool_down_time_left / cool_down_period;
+            u64::from(u32::from(self.initial_fee_rate)) * cool_down_time_left / cool_down_seconds;
         let total_amount = u64::from(self.lst_amount);
         let fee_amount = total_amount
             .checked_mul(fee_rate_bps)
@@ -114,7 +114,7 @@ mod tests {
             stake_pool_deposit_stake_authority: Pubkey::new_unique(),
             deposit_time: PodU64::from(1_000),
             lst_amount: PodU64::from(1_000_000),
-            cool_down_period: PodU64::from(1_000),
+            cool_down_seconds: PodU64::from(1_000),
             initial_fee_rate: PodU32::from(100),
             bump_seed: 0,
         };

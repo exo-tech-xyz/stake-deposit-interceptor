@@ -156,8 +156,8 @@ impl Processor {
         deposit_stake_authority.stake_pool_program_id = *stake_pool_program_info.key;
         deposit_stake_authority.authority = *authority.key;
         deposit_stake_authority.fee_wallet = init_deposit_stake_authority_args.fee_wallet;
-        deposit_stake_authority.cool_down_period =
-            init_deposit_stake_authority_args.cool_down_period.into();
+        deposit_stake_authority.cool_down_seconds =
+            init_deposit_stake_authority_args.cool_down_seconds.into();
         deposit_stake_authority.inital_fee_rate =
             init_deposit_stake_authority_args.initial_fee_rate.into();
         deposit_stake_authority.bump_seed = bump_seed;
@@ -165,7 +165,7 @@ impl Processor {
         Ok(())
     }
 
-    /// Update `StakePoolDepositStakeAuthority` authority, fee_wallet, cool_down_period, and/or initial_fee_rate.
+    /// Update `StakePoolDepositStakeAuthority` authority, fee_wallet, cool_down_seconds, and/or initial_fee_rate.
     /// ONLY accessible by the currnet authority.
     pub fn process_update_deposit_stake_authority(
         program_id: &Pubkey,
@@ -211,8 +211,8 @@ impl Processor {
             deposit_stake_authority.authority = *new_authority.key;
         }
 
-        if let Some(cool_down_period) = update_deposit_stake_authority_args.cool_down_period {
-            deposit_stake_authority.cool_down_period = cool_down_period.into();
+        if let Some(cool_down_seconds) = update_deposit_stake_authority_args.cool_down_seconds {
+            deposit_stake_authority.cool_down_seconds = cool_down_seconds.into();
         }
         if let Some(initial_fee_rate) = update_deposit_stake_authority_args.initial_fee_rate {
             deposit_stake_authority.inital_fee_rate = initial_fee_rate.into();
@@ -353,7 +353,7 @@ impl Processor {
         deposit_receipt.stake_pool_deposit_stake_authority = *deposit_stake_authority_info.key;
         deposit_receipt.deposit_time = clock.unix_timestamp.unsigned_abs().into();
         deposit_receipt.lst_amount = pool_tokens_minted.into();
-        deposit_receipt.cool_down_period = deposit_stake_authority.cool_down_period;
+        deposit_receipt.cool_down_seconds = deposit_stake_authority.cool_down_seconds;
         deposit_receipt.initial_fee_rate = deposit_stake_authority.inital_fee_rate;
         deposit_receipt.bump_seed = bump_seed;
 
@@ -398,9 +398,9 @@ impl Processor {
     }
 
     /// Transfers "pool" tokens to a token account owned by the DepositReceipt `owner`.
-    /// If this instruction is invoked during the `cool_down_period`, then fees will be
+    /// If this instruction is invoked during the `cool_down_seconds`, then fees will be
     /// sent to a token account owned by the `fee_wallet`. ONLY the DepositReceipt `owner`
-    /// may invoke this instruction during the `cool_down_period`. Once the `cool_down_period`
+    /// may invoke this instruction during the `cool_down_seconds`. Once the `cool_down_seconds`
     /// has ended, the instruction is permissionless and no fees are subtracted from the
     /// depositors original amount of "pool" tokens.
     pub fn process_claim_pool_tokens(
@@ -435,7 +435,7 @@ impl Processor {
                 DepositReceipt::try_from_slice_unchecked(&deposit_receipt_data).unwrap();
 
             let cool_down_end_time = u64::from(deposit_receipt.deposit_time)
-                .checked_add(deposit_receipt.cool_down_period.into())
+                .checked_add(deposit_receipt.cool_down_seconds.into())
                 .expect("overflow") as i64;
 
             // Validate: Owner must be signer during cool down to prevent unintended fee payment

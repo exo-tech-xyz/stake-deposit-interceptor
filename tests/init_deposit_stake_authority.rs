@@ -27,7 +27,7 @@ async fn test_init_deposit_stake_authority() {
 
     let fee_wallet = Keypair::new();
     let authority = Keypair::new();
-    let cool_down_period = 100;
+    let cool_down_seconds = 100;
     let initial_fee_rate = 20;
     let init_ix =
         stake_deposit_interceptor::instruction::create_init_deposit_stake_authority_instruction(
@@ -39,7 +39,7 @@ async fn test_init_deposit_stake_authority() {
             &spl_stake_pool::id(),
             &spl_token::id(),
             &fee_wallet.pubkey(),
-            cool_down_period,
+            cool_down_seconds,
             initial_fee_rate,
             &authority.pubkey(),
         );
@@ -85,9 +85,9 @@ async fn test_init_deposit_stake_authority() {
     assert_eq!(vault_token_account.owner, deposit_stake_authority_pubkey);
 
     assert_eq!(deposit_stake_authority.authority, authority.pubkey());
-    let actual_cool_down_period: u64 = deposit_stake_authority.cool_down_period.into();
+    let actual_cool_down_seconds: u64 = deposit_stake_authority.cool_down_seconds.into();
     let actual_initial_fee_rate: u32 = deposit_stake_authority.inital_fee_rate.into();
-    assert_eq!(actual_cool_down_period, cool_down_period);
+    assert_eq!(actual_cool_down_seconds, cool_down_seconds);
     assert_eq!(actual_initial_fee_rate, initial_fee_rate);
     assert_eq!(
         deposit_stake_authority.stake_pool,
@@ -110,7 +110,7 @@ async fn setup_with_ix() -> (ProgramTestContext, StakePoolAccounts, Keypair, Ins
 
     let fee_wallet = Keypair::new();
     let authority = Keypair::new();
-    let cool_down_period = 100;
+    let cool_down_seconds = 100;
     let initial_fee_rate = 20;
     let ix =
         stake_deposit_interceptor::instruction::create_init_deposit_stake_authority_instruction(
@@ -122,7 +122,7 @@ async fn setup_with_ix() -> (ProgramTestContext, StakePoolAccounts, Keypair, Ins
             &spl_stake_pool::id(),
             &spl_token::id(),
             &fee_wallet.pubkey(),
-            cool_down_period,
+            cool_down_seconds,
             initial_fee_rate,
             &authority.pubkey(),
         );

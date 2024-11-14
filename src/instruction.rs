@@ -11,7 +11,7 @@ use spl_associated_token_account::get_associated_token_address;
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub struct InitStakePoolDepositStakeAuthorityArgs {
     pub fee_wallet: Pubkey,
-    pub cool_down_period: u64,
+    pub cool_down_seconds: u64,
     pub initial_fee_rate: u32,
     pub bump_seed: u8,
 }
@@ -21,7 +21,7 @@ pub struct InitStakePoolDepositStakeAuthorityArgs {
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub struct UpdateStakePoolDepositStakeAuthorityArgs {
     pub fee_wallet: Option<Pubkey>,
-    pub cool_down_period: Option<u64>,
+    pub cool_down_seconds: Option<u64>,
     pub initial_fee_rate: Option<u32>,
 }
 
@@ -201,7 +201,7 @@ pub fn create_init_deposit_stake_authority_instruction(
     stake_pool_program_id: &Pubkey,
     token_program_id: &Pubkey,
     fee_wallet: &Pubkey,
-    cool_down_period: u64,
+    cool_down_seconds: u64,
     initial_fee_rate: u32,
     authority: &Pubkey,
 ) -> Instruction {
@@ -211,7 +211,7 @@ pub fn create_init_deposit_stake_authority_instruction(
     let args = InitStakePoolDepositStakeAuthorityArgs {
         fee_wallet: *fee_wallet,
         initial_fee_rate,
-        cool_down_period,
+        cool_down_seconds,
         bump_seed,
     };
     let accounts = vec![
@@ -243,7 +243,7 @@ pub fn create_update_deposit_stake_authority_instruction(
     authority: &Pubkey,
     new_authority: Option<Pubkey>,
     fee_wallet: Option<Pubkey>,
-    cool_down_period: Option<u64>,
+    cool_down_seconds: Option<u64>,
     initial_fee_rate: Option<u32>,
 ) -> Instruction {
     let (deposit_stake_authority_pubkey, _bump_seed) =
@@ -251,7 +251,7 @@ pub fn create_update_deposit_stake_authority_instruction(
     let args = UpdateStakePoolDepositStakeAuthorityArgs {
         fee_wallet: fee_wallet,
         initial_fee_rate: initial_fee_rate,
-        cool_down_period: cool_down_period,
+        cool_down_seconds,
     };
     let mut accounts = vec![
         AccountMeta::new(deposit_stake_authority_pubkey, false),

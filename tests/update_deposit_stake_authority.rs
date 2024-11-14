@@ -44,7 +44,7 @@ async fn test_update_deposit_stake_authority() {
 
     let fee_wallet = Keypair::new();
     let new_authority = Keypair::new();
-    let cool_down_period = 78;
+    let cool_down_seconds = 78;
     let initial_fee_rate = 20;
 
     let update_ix =
@@ -54,7 +54,7 @@ async fn test_update_deposit_stake_authority() {
             &authority.pubkey(),
             Some(new_authority.pubkey()),
             Some(fee_wallet.pubkey()),
-            Some(cool_down_period),
+            Some(cool_down_seconds),
             Some(initial_fee_rate),
         );
 
@@ -82,9 +82,9 @@ async fn test_update_deposit_stake_authority() {
     let deposit_stake_authority =
         StakePoolDepositStakeAuthority::try_from_slice_unchecked(&account.data.as_slice()).unwrap();
 
-    let actual_cool_down_period: u64 = deposit_stake_authority.cool_down_period.into();
+    let actual_cool_down_seconds: u64 = deposit_stake_authority.cool_down_seconds.into();
     let actual_initial_fee_rate: u32 = deposit_stake_authority.inital_fee_rate.into();
-    assert_eq!(actual_cool_down_period, cool_down_period);
+    assert_eq!(actual_cool_down_seconds, cool_down_seconds);
     assert_eq!(actual_initial_fee_rate, initial_fee_rate);
     assert_eq!(deposit_stake_authority.fee_wallet, fee_wallet.pubkey());
     assert_eq!(deposit_stake_authority.authority, new_authority.pubkey());
@@ -120,7 +120,7 @@ async fn setup_with_ix() -> (
 
     let fee_wallet = Keypair::new();
     let new_authority = Keypair::new();
-    let cool_down_period = 78;
+    let cool_down_seconds = 78;
     let initial_fee_rate = 20;
 
     let update_ix =
@@ -130,7 +130,7 @@ async fn setup_with_ix() -> (
             &authority.pubkey(),
             Some(new_authority.pubkey()),
             Some(fee_wallet.pubkey()),
-            Some(cool_down_period),
+            Some(cool_down_seconds),
             Some(initial_fee_rate),
         );
     (
