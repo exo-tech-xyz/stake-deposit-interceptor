@@ -61,11 +61,6 @@ impl Processor {
         // Validate: StakePoolDepositStakeAuthority should be owned by system program and not initialized
         check_system_account(deposit_stake_authority_info, true)?;
 
-        // Validate: authority signed the TX
-        if !authority.is_signer {
-            return Err(StakeDepositInterceptorError::SignatureMissing.into());
-        }
-
         // Validate: `initial_fee_bps` cannot exceed 100%
         if init_deposit_stake_authority_args
             .initial_fee_bps
@@ -211,10 +206,6 @@ impl Processor {
         }
 
         if let Some(new_authority) = new_authority_info {
-            // Validate: new_authority has also signed the transaction
-            if !new_authority.is_signer {
-                return Err(StakeDepositInterceptorError::SignatureMissing.into());
-            }
             deposit_stake_authority.authority = *new_authority.key;
         }
 
