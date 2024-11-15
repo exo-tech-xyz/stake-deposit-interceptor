@@ -64,7 +64,7 @@ async fn test_update_deposit_stake_authority() {
     let tx = Transaction::new_signed_with_payer(
         &[update_ix],
         Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &authority, &new_authority],
+        &[&ctx.payer, &authority],
         ctx.last_blockhash,
     );
 
@@ -163,7 +163,7 @@ async fn test_fail_program_does_not_own_pda_account() {
         mut ctx,
         _stake_pool_accounts,
         authority,
-        new_authority,
+        _new_authority,
         _deposit_stake_authority_pubkey,
         mut ix,
     ) = setup_with_ix().await;
@@ -172,7 +172,7 @@ async fn test_fail_program_does_not_own_pda_account() {
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &authority, &new_authority],
+        &[&ctx.payer, &authority],
         ctx.last_blockhash,
     );
 
@@ -185,7 +185,7 @@ async fn test_fail_authority_not_signer() {
         mut ctx,
         _stake_pool_accounts,
         authority,
-        new_authority,
+        _new_authority,
         _deposit_stake_authority_pubkey,
         mut ix,
     ) = setup_with_ix().await;
@@ -194,7 +194,7 @@ async fn test_fail_authority_not_signer() {
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &new_authority],
+        &[&ctx.payer],
         ctx.last_blockhash,
     );
 
@@ -212,7 +212,7 @@ async fn test_fail_authority_incorrect() {
         mut ctx,
         _stake_pool_accounts,
         _authority,
-        new_authority,
+        _new_authority,
         _deposit_stake_authority_pubkey,
         mut ix,
     ) = setup_with_ix().await;
@@ -222,7 +222,7 @@ async fn test_fail_authority_incorrect() {
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &bad_authority, &new_authority],
+        &[&ctx.payer, &bad_authority],
         ctx.last_blockhash,
     );
 
@@ -240,41 +240,12 @@ async fn test_fail_invalid_stake_deposit_authority_address() {
         mut ctx,
         _stake_pool_accounts,
         authority,
-        new_authority,
+        _new_authority,
         deposit_stake_authority_pubkey,
         mut ix,
     ) = setup_with_ix().await;
     let bad_account = clone_account_to_new_address(&mut ctx, &deposit_stake_authority_pubkey).await;
     ix.accounts[0] = AccountMeta::new(bad_account, false);
-
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &authority, &new_authority],
-        ctx.last_blockhash,
-    );
-
-    assert_transaction_err(
-        &mut ctx,
-        tx,
-        InstructionError::Custom(
-            StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32,
-        ),
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_fail_new_authority_not_signer() {
-    let (
-        mut ctx,
-        _stake_pool_accounts,
-        authority,
-        new_authority,
-        _deposit_stake_authority_pubkey,
-        mut ix,
-    ) = setup_with_ix().await;
-    ix.accounts[2] = AccountMeta::new_readonly(new_authority.pubkey(), false);
 
     let tx = Transaction::new_signed_with_payer(
         &[ix],
@@ -286,7 +257,9 @@ async fn test_fail_new_authority_not_signer() {
     assert_transaction_err(
         &mut ctx,
         tx,
-        InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32),
+        InstructionError::Custom(
+            StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32,
+        ),
     )
     .await;
 }

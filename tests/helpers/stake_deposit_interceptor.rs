@@ -35,7 +35,7 @@ pub async fn create_stake_deposit_authority(
     let tx = Transaction::new_signed_with_payer(
         &[init_ix],
         Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &authority],
+        &[&ctx.payer],
         ctx.last_blockhash,
     );
 
