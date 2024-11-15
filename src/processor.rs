@@ -93,8 +93,11 @@ impl Processor {
             return Err(StakeDepositInterceptorError::InvalidTokenProgram.into());
         }
 
-        let (deposit_stake_authority_pda, bump_seed) =
-            derive_stake_pool_deposit_stake_authority(program_id, stake_pool_info.key);
+        let (deposit_stake_authority_pda, bump_seed) = derive_stake_pool_deposit_stake_authority(
+            program_id,
+            stake_pool_info.key,
+            &init_deposit_stake_authority_args.base,
+        );
 
         if deposit_stake_authority_pda != *deposit_stake_authority_info.key {
             return Err(StakeDepositInterceptorError::InvalidSeeds.into());
@@ -103,6 +106,7 @@ impl Processor {
         let pda_seeds = [
             STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
             &stake_pool_info.key.to_bytes(),
+            &init_deposit_stake_authority_args.base.to_bytes(),
             &[bump_seed],
         ];
         // Create and initialize the StakePoolDepositStakeAuthority account
@@ -152,6 +156,7 @@ impl Processor {
         .unwrap();
 
         // Set StakePoolDepositStakeAuthority values
+        deposit_stake_authority.base = init_deposit_stake_authority_args.base;
         deposit_stake_authority.stake_pool = *stake_pool_info.key;
         deposit_stake_authority.pool_mint = stake_pool.pool_mint;
         deposit_stake_authority.vault = vault_ata;

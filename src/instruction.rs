@@ -13,7 +13,7 @@ pub struct InitStakePoolDepositStakeAuthorityArgs {
     pub fee_wallet: Pubkey,
     pub cool_down_seconds: u64,
     pub initial_fee_bps: u32,
-    pub bump_seed: u8,
+    pub base: Pubkey,
 }
 
 /// Update arguments for StakePoolDepositStakeAuthority
@@ -167,9 +167,14 @@ pub const DEPOSIT_RECEIPT: &[u8] = b"deposit_receipt";
 pub fn derive_stake_pool_deposit_stake_authority(
     program_id: &Pubkey,
     stake_pool: &Pubkey,
+    base: &Pubkey,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
-        &[STAKE_POOL_DEPOSIT_STAKE_AUTHORITY, &stake_pool.to_bytes()],
+        &[
+            STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
+            &stake_pool.to_bytes(),
+            &base.to_bytes(),
+        ],
         program_id,
     )
 }
@@ -204,15 +209,16 @@ pub fn create_init_deposit_stake_authority_instruction(
     cool_down_seconds: u64,
     initial_fee_bps: u32,
     authority: &Pubkey,
+    base: &Pubkey,
 ) -> Instruction {
-    let (deposit_stake_authority_pubkey, bump_seed) =
-        derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
+    let (deposit_stake_authority_pubkey, _bump_seed) =
+        derive_stake_pool_deposit_stake_authority(program_id, stake_pool, base);
     let vault_ata = get_associated_token_address(&deposit_stake_authority_pubkey, stake_pool_mint);
     let args = InitStakePoolDepositStakeAuthorityArgs {
         fee_wallet: *fee_wallet,
         initial_fee_bps,
         cool_down_seconds,
-        bump_seed,
+        base: *base,
     };
     let accounts = vec![
         AccountMeta::new(*payer, true),
@@ -240,13 +246,14 @@ pub fn create_update_deposit_stake_authority_instruction(
     program_id: &Pubkey,
     stake_pool: &Pubkey,
     authority: &Pubkey,
+    base: &Pubkey,
     new_authority: Option<Pubkey>,
     fee_wallet: Option<Pubkey>,
     cool_down_seconds: Option<u64>,
     initial_fee_bps: Option<u32>,
 ) -> Instruction {
     let (deposit_stake_authority_pubkey, _bump_seed) =
-        derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
+        derive_stake_pool_deposit_stake_authority(program_id, stake_pool, base);
     let args = UpdateStakePoolDepositStakeAuthorityArgs {
         fee_wallet: fee_wallet,
         initial_fee_bps,
@@ -387,12 +394,13 @@ pub fn create_deposit_stake_instruction(
     referrer_pool_tokens_account: &Pubkey,
     pool_mint: &Pubkey,
     token_program_id: &Pubkey,
-    base: &Pubkey,
+    deposit_receipt_base: &Pubkey,
+    deposit_authority_base: &Pubkey,
 ) -> Vec<Instruction> {
     // The StakePool's deposit authority is assumed to be the PDA owned by
     // the stake-deposit-interceptor program
     let (deposit_stake_authority_pubkey, _bump_seed) =
-        derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
+        derive_stake_pool_deposit_stake_authority(program_id, stake_pool, deposit_authority_base);
     deposit_stake_internal(
         program_id,
         payer,
@@ -410,7 +418,7 @@ pub fn create_deposit_stake_instruction(
         referrer_pool_tokens_account,
         pool_mint,
         token_program_id,
-        base,
+        deposit_receipt_base,
         None,
     )
 }
@@ -433,13 +441,14 @@ pub fn create_deposit_stake_with_slippage_nstruction(
     referrer_pool_tokens_account: &Pubkey,
     pool_mint: &Pubkey,
     token_program_id: &Pubkey,
-    base: &Pubkey,
+    deposit_receipt_base: &Pubkey,
+    deposit_authority_base: &Pubkey,
     minimum_pool_tokens_out: u64,
 ) -> Vec<Instruction> {
     // The StakePool's deposit authority is assumed to be the PDA owned by
     // the stake-deposit-interceptor program
     let (deposit_stake_authority_pubkey, _bump_seed) =
-        derive_stake_pool_deposit_stake_authority(program_id, stake_pool);
+        derive_stake_pool_deposit_stake_authority(program_id, stake_pool, deposit_authority_base);
     deposit_stake_internal(
         program_id,
         payer,
@@ -457,7 +466,7 @@ pub fn create_deposit_stake_with_slippage_nstruction(
         referrer_pool_tokens_account,
         pool_mint,
         token_program_id,
-        base,
+        deposit_receipt_base,
         Some(minimum_pool_tokens_out),
     )
 }

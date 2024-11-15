@@ -4,6 +4,7 @@ macro_rules! deposit_stake_authority_signer_seeds {
         &[
             STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
             $deposit_stake_authority.stake_pool.as_ref(),
+            $deposit_stake_authority.base.as_ref(),
             &[$deposit_stake_authority.bump_seed],
         ]
     };

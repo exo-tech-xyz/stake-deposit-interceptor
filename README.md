@@ -9,6 +9,8 @@ More information in the Jito governance forum [here](https://forum.jito.network/
 ```rust
 // PDA derived from stake_pool pubkey
 pub struct StakePoolDepositStakeAuthority {
+    /// A generated seed for the PDA of this receipt
+    pub base: Pubkey,
     /// Corresponding stake pool where this PDA is the `deposit_stake_authority`
     pub stake_pool: Pubkey,
     /// Mint of the LST from the StakePool

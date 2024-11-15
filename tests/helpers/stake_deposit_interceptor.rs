@@ -8,6 +8,7 @@ pub async fn create_stake_deposit_authority(
     stake_pool_pubkey: &Pubkey,
     stake_pool_mint: &Pubkey,
     authority: &Keypair,
+    base: &Pubkey,
     fee_wallet_address: Option<&Pubkey>,
 ) {
     let mut fee_wallet = Pubkey::new_unique();
@@ -28,6 +29,7 @@ pub async fn create_stake_deposit_authority(
             cool_down_seconds,
             initial_fee_bps,
             &authority.pubkey(),
+            base,
         );
 
     let tx = Transaction::new_signed_with_payer(
