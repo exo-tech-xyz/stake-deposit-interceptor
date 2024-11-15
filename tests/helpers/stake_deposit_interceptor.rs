@@ -22,7 +22,6 @@ pub async fn create_stake_deposit_authority(
             &ctx.payer.pubkey(),
             &stake_pool_pubkey,
             stake_pool_mint,
-            &ctx.payer.pubkey(),
             &spl_stake_pool::id(),
             &spl_token::id(),
             &fee_wallet,

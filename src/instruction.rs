@@ -71,7 +71,8 @@ pub enum StakeDepositInterceptorInstruction {
     ///   5. `[]` StakePool's Pool Mint
     ///   6. `[]` StakePool Program ID
     ///   7. `[]` Token program
-    ///   8. `[]` System program
+    ///   8. `[]` Associated Token program
+    ///   9. `[]` System program
     InitStakePoolDepositStakeAuthority(InitStakePoolDepositStakeAuthorityArgs),
     ///   Updates the StakePoolDepositStakeAuthority for the given StakePool.
     ///
@@ -197,7 +198,6 @@ pub fn create_init_deposit_stake_authority_instruction(
     payer: &Pubkey,
     stake_pool: &Pubkey,
     stake_pool_mint: &Pubkey,
-    stake_pool_manager: &Pubkey,
     stake_pool_program_id: &Pubkey,
     token_program_id: &Pubkey,
     fee_wallet: &Pubkey,
@@ -221,7 +221,6 @@ pub fn create_init_deposit_stake_authority_instruction(
         AccountMeta::new_readonly(*authority, true),
         AccountMeta::new_readonly(*stake_pool, false),
         AccountMeta::new_readonly(*stake_pool_mint, false),
-        AccountMeta::new_readonly(*stake_pool_manager, true),
         AccountMeta::new_readonly(*stake_pool_program_id, false),
         AccountMeta::new_readonly(*token_program_id, false),
         AccountMeta::new_readonly(spl_associated_token_account::id(), false),

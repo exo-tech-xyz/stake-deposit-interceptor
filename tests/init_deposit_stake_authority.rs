@@ -35,7 +35,6 @@ async fn test_init_deposit_stake_authority() {
             &ctx.payer.pubkey(),
             &stake_pool_accounts.stake_pool,
             &stake_pool_accounts.pool_mint,
-            &ctx.payer.pubkey(),
             &spl_stake_pool::id(),
             &spl_token::id(),
             &fee_wallet.pubkey(),
@@ -118,7 +117,6 @@ async fn setup_with_ix() -> (ProgramTestContext, StakePoolAccounts, Keypair, Ins
             &ctx.payer.pubkey(),
             &stake_pool_accounts.stake_pool,
             &stake_pool_accounts.pool_mint,
-            &ctx.payer.pubkey(),
             &spl_stake_pool::id(),
             &spl_token::id(),
             &fee_wallet.pubkey(),
@@ -132,7 +130,7 @@ async fn setup_with_ix() -> (ProgramTestContext, StakePoolAccounts, Keypair, Ins
 #[tokio::test]
 async fn test_fail_invalid_system_program() {
     let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
-    init_ix.accounts[10] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
+    init_ix.accounts[9] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
 
     let tx = Transaction::new_signed_with_payer(
         &[init_ix],
@@ -210,30 +208,9 @@ async fn test_fail_authority_non_signer() {
 }
 
 #[tokio::test]
-async fn test_fail_stakepool_manager_non_signer() {
-    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
-    let manager = Keypair::new();
-    init_ix.accounts[6] = AccountMeta::new_readonly(manager.pubkey(), false);
-
-    let tx = Transaction::new_signed_with_payer(
-        &[init_ix],
-        Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &authority],
-        ctx.last_blockhash,
-    );
-
-    assert_transaction_err(
-        &mut ctx,
-        tx,
-        InstructionError::Custom(StakeDepositInterceptorError::SignatureMissing as u32),
-    )
-    .await;
-}
-
-#[tokio::test]
 async fn test_fail_incorrect_stakepool_program() {
     let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
-    init_ix.accounts[7] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
+    init_ix.accounts[6] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
 
     let tx = Transaction::new_signed_with_payer(
         &[init_ix],
@@ -246,27 +223,6 @@ async fn test_fail_incorrect_stakepool_program() {
         &mut ctx,
         tx,
         InstructionError::Custom(StakeDepositInterceptorError::InvalidStakePool as u32),
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_fail_incorrect_stakepool_manager() {
-    let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
-    let manager = Keypair::new();
-    init_ix.accounts[6] = AccountMeta::new_readonly(manager.pubkey(), true);
-
-    let tx = Transaction::new_signed_with_payer(
-        &[init_ix],
-        Some(&ctx.payer.pubkey()),
-        &[&ctx.payer, &authority, &manager],
-        ctx.last_blockhash,
-    );
-
-    assert_transaction_err(
-        &mut ctx,
-        tx,
-        InstructionError::Custom(StakeDepositInterceptorError::InvalidStakePoolManager as u32),
     )
     .await;
 }
@@ -294,7 +250,7 @@ async fn test_fail_incorrect_stakepool_mint() {
 #[tokio::test]
 async fn test_fail_incorrect_token_program() {
     let (mut ctx, _stake_pool_accounts, authority, mut init_ix) = setup_with_ix().await;
-    init_ix.accounts[8] = AccountMeta::new_readonly(spl_token_2022::id(), false);
+    init_ix.accounts[7] = AccountMeta::new_readonly(spl_token_2022::id(), false);
 
     let tx = Transaction::new_signed_with_payer(
         &[init_ix],
@@ -365,7 +321,6 @@ async fn test_fail_initial_fee_bps_cannot_exceed_10000() {
             &ctx.payer.pubkey(),
             &stake_pool_accounts.stake_pool,
             &stake_pool_accounts.pool_mint,
-            &ctx.payer.pubkey(),
             &spl_stake_pool::id(),
             &spl_token::id(),
             &fee_wallet.pubkey(),

@@ -49,7 +49,6 @@ impl Processor {
         let authority = next_account_info(account_info_iter)?;
         let stake_pool_info = next_account_info(account_info_iter)?;
         let stake_pool_mint_info = next_account_info(account_info_iter)?;
-        let stake_pool_manager_info = next_account_info(account_info_iter)?;
         let stake_pool_program_info = next_account_info(account_info_iter)?;
         let token_program_info = next_account_info(account_info_iter)?;
         let _associated_token_account_program_info = next_account_info(account_info_iter)?;
@@ -62,8 +61,8 @@ impl Processor {
         // Validate: StakePoolDepositStakeAuthority should be owned by system program and not initialized
         check_system_account(deposit_stake_authority_info, true)?;
 
-        // Validate: authority and StakePool's manager signed the TX
-        if !authority.is_signer || !stake_pool_manager_info.is_signer {
+        // Validate: authority signed the TX
+        if !authority.is_signer {
             return Err(StakeDepositInterceptorError::SignatureMissing.into());
         }
 
@@ -83,11 +82,6 @@ impl Processor {
         let stake_pool = try_from_slice_unchecked::<spl_stake_pool::state::StakePool>(
             &stake_pool_info.data.borrow(),
         )?;
-
-        // Validate: manager is StakePool's manager
-        if stake_pool.manager != *stake_pool_manager_info.key {
-            return Err(StakeDepositInterceptorError::InvalidStakePoolManager.into());
-        }
 
         // Validate: stake_pool's mint is same as given account
         if stake_pool.pool_mint != *stake_pool_mint_info.key {
