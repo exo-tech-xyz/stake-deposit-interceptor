@@ -225,7 +225,6 @@ async fn test_success_claim_pool_tokens() {
     );
     let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
-        &depositor.pubkey(),
         &stake_pool_accounts.stake_pool,
         &deposit_receipt_base,
     );
@@ -327,7 +326,6 @@ async fn setup_with_ix() -> (
     );
     let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
-        &depositor.pubkey(),
         &stake_pool_accounts.stake_pool,
         &deposit_receipt_base,
     );

@@ -15,7 +15,6 @@ macro_rules! deposit_receipt_signer_seeds {
     ($deposit_receipt:expr) => {
         &[
             DEPOSIT_RECEIPT,
-            $deposit_receipt.owner.as_ref(),
             $deposit_receipt.stake_pool.as_ref(),
             $deposit_receipt.base.as_ref(),
             &[$deposit_receipt.bump_seed],

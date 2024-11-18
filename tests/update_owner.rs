@@ -202,7 +202,6 @@ async fn success() {
 
     let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
-        &depositor.pubkey(),
         &stake_pool_accounts.stake_pool,
         &base,
     );
@@ -249,7 +248,6 @@ async fn setup_with_ix() -> (ProgramTestContext, Keypair, Pubkey, Instruction) {
 
     let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
-        &depositor.pubkey(),
         &stake_pool_accounts.stake_pool,
         &base,
     );

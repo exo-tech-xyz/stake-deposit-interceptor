@@ -321,7 +321,6 @@ impl Processor {
 
         let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
             program_id,
-            &deposit_stake_args.owner,
             stake_pool_info.key,
             &deposit_stake_args.base,
         );
@@ -333,7 +332,6 @@ impl Processor {
 
         let pda_seeds = [
             DEPOSIT_RECEIPT,
-            &deposit_stake_args.owner.to_bytes(),
             &stake_pool_info.key.to_bytes(),
             &deposit_stake_args.base.to_bytes(),
             &[bump_seed],

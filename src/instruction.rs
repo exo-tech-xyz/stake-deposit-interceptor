@@ -182,14 +182,12 @@ pub fn derive_stake_pool_deposit_stake_authority(
 /// Derive the DepositReceipt pubkey for a given program
 pub fn derive_stake_deposit_receipt(
     program_id: &Pubkey,
-    owner: &Pubkey,
     stake_pool: &Pubkey,
     base: &Pubkey,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[
             DEPOSIT_RECEIPT,
-            &owner.to_bytes(),
             &stake_pool.to_bytes(),
             &base.to_bytes(),
         ],
@@ -298,7 +296,6 @@ fn deposit_stake_internal(
 ) -> Vec<Instruction> {
     let (deposit_receipt_pubkey, _bump_seed) = derive_stake_deposit_receipt(
         program_id,
-        deposit_stake_withdraw_authority,
         stake_pool,
         base,
     );
