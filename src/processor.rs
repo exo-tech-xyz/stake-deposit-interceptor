@@ -46,7 +46,8 @@ impl Processor {
         let payer_info = next_account_info(account_info_iter)?;
         let deposit_stake_authority_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
         let vault_ata_info: &AccountInfo<'_> = next_account_info(account_info_iter)?;
-        let authority = next_account_info(account_info_iter)?;
+        let authority_info = next_account_info(account_info_iter)?;
+        let base_info = next_account_info(account_info_iter)?;
         let stake_pool_info = next_account_info(account_info_iter)?;
         let stake_pool_mint_info = next_account_info(account_info_iter)?;
         let stake_pool_program_info = next_account_info(account_info_iter)?;
@@ -61,8 +62,8 @@ impl Processor {
         // Validate: StakePoolDepositStakeAuthority should be owned by system program and not initialized
         check_system_account(deposit_stake_authority_info, true)?;
 
-        // Validate: authority signed the TX
-        if !authority.is_signer {
+        // Validate: authority and base signed the TX
+        if !authority_info.is_signer || !base_info.is_signer {
             return Err(StakeDepositInterceptorError::SignatureMissing.into());
         }
 
@@ -96,7 +97,7 @@ impl Processor {
         let (deposit_stake_authority_pda, bump_seed) = derive_stake_pool_deposit_stake_authority(
             program_id,
             stake_pool_info.key,
-            &init_deposit_stake_authority_args.base,
+            base_info.key,
         );
 
         if deposit_stake_authority_pda != *deposit_stake_authority_info.key {
@@ -106,7 +107,7 @@ impl Processor {
         let pda_seeds = [
             STAKE_POOL_DEPOSIT_STAKE_AUTHORITY,
             &stake_pool_info.key.to_bytes(),
-            &init_deposit_stake_authority_args.base.to_bytes(),
+            &base_info.key.to_bytes(),
             &[bump_seed],
         ];
         // Create and initialize the StakePoolDepositStakeAuthority account
@@ -156,12 +157,12 @@ impl Processor {
         .unwrap();
 
         // Set StakePoolDepositStakeAuthority values
-        deposit_stake_authority.base = init_deposit_stake_authority_args.base;
+        deposit_stake_authority.base = *base_info.key;
         deposit_stake_authority.stake_pool = *stake_pool_info.key;
         deposit_stake_authority.pool_mint = stake_pool.pool_mint;
         deposit_stake_authority.vault = vault_ata;
         deposit_stake_authority.stake_pool_program_id = *stake_pool_program_info.key;
-        deposit_stake_authority.authority = *authority.key;
+        deposit_stake_authority.authority = *authority_info.key;
         deposit_stake_authority.fee_wallet = init_deposit_stake_authority_args.fee_wallet;
         deposit_stake_authority.cool_down_seconds =
             init_deposit_stake_authority_args.cool_down_seconds.into();
@@ -319,11 +320,8 @@ impl Processor {
         let rent = Rent::get()?;
         let clock = Clock::get()?;
 
-        let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
-            program_id,
-            stake_pool_info.key,
-            &deposit_stake_args.base,
-        );
+        let (deposit_receipt_pda, bump_seed) =
+            derive_stake_deposit_receipt(program_id, stake_pool_info.key, &deposit_stake_args.base);
 
         // Validate: DepositReceipt should be canonical PDA
         if deposit_receipt_pda != *deposit_receipt_info.key {

@@ -2,7 +2,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    stake, system_program, sysvar,
+    stake,
+    system_program,
+    sysvar,
 };
 use spl_associated_token_account::get_associated_token_address;
 
@@ -13,7 +15,6 @@ pub struct InitStakePoolDepositStakeAuthorityArgs {
     pub fee_wallet: Pubkey,
     pub cool_down_seconds: u64,
     pub initial_fee_bps: u32,
-    pub base: Pubkey,
 }
 
 /// Update arguments for StakePoolDepositStakeAuthority
@@ -67,12 +68,13 @@ pub enum StakeDepositInterceptorInstruction {
     ///   1. `[w]` New StakePoolDepositStakeAuthority to create.
     ///   2. `[w]` New ATA owned by the `StakePoolDepositStakeAuthority` to create.
     ///   3. `[s]` Authority
-    ///   4. `[]` StakePool
-    ///   5. `[]` StakePool's Pool Mint
-    ///   6. `[]` StakePool Program ID
-    ///   7. `[]` Token program
-    ///   8. `[]` Associated Token program
-    ///   9. `[]` System program
+    ///   4. `[s]` Base for PDA seed
+    ///   5. `[]` StakePool
+    ///   6. `[]` StakePool's Pool Mint
+    ///   7. `[]` StakePool Program ID
+    ///   8. `[]` Token program
+    ///   9. `[]` Associated Token program
+    ///   10. `[]` System program
     InitStakePoolDepositStakeAuthority(InitStakePoolDepositStakeAuthorityArgs),
     ///   Updates the StakePoolDepositStakeAuthority for the given StakePool.
     ///
@@ -186,11 +188,7 @@ pub fn derive_stake_deposit_receipt(
     base: &Pubkey,
 ) -> (Pubkey, u8) {
     Pubkey::find_program_address(
-        &[
-            DEPOSIT_RECEIPT,
-            &stake_pool.to_bytes(),
-            &base.to_bytes(),
-        ],
+        &[DEPOSIT_RECEIPT, &stake_pool.to_bytes(), &base.to_bytes()],
         program_id,
     )
 }
@@ -216,13 +214,13 @@ pub fn create_init_deposit_stake_authority_instruction(
         fee_wallet: *fee_wallet,
         initial_fee_bps,
         cool_down_seconds,
-        base: *base,
     };
     let accounts = vec![
         AccountMeta::new(*payer, true),
         AccountMeta::new(deposit_stake_authority_pubkey, false),
         AccountMeta::new(vault_ata, false),
         AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new_readonly(*base, true),
         AccountMeta::new_readonly(*stake_pool, false),
         AccountMeta::new_readonly(*stake_pool_mint, false),
         AccountMeta::new_readonly(*stake_pool_program_id, false),
@@ -294,11 +292,8 @@ fn deposit_stake_internal(
     base: &Pubkey,
     minimum_pool_tokens_out: Option<u64>,
 ) -> Vec<Instruction> {
-    let (deposit_receipt_pubkey, _bump_seed) = derive_stake_deposit_receipt(
-        program_id,
-        stake_pool,
-        base,
-    );
+    let (deposit_receipt_pubkey, _bump_seed) =
+        derive_stake_deposit_receipt(program_id, stake_pool, base);
     let mut instructions = vec![];
     let mut accounts = vec![
         AccountMeta::new(*payer, true),

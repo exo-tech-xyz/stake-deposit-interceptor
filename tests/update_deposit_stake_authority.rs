@@ -32,7 +32,7 @@ async fn test_update_deposit_stake_authority() {
         try_from_slice_unchecked::<spl_stake_pool::state::StakePool>(&stake_pool_account.data)
             .unwrap();
 
-    let deposit_authority_base = Pubkey::new_unique();
+    let deposit_authority_base = Keypair::new();
     let authority = Keypair::new();
     create_stake_deposit_authority(
         &mut ctx,
@@ -54,7 +54,7 @@ async fn test_update_deposit_stake_authority() {
             &stake_deposit_interceptor::id(),
             &stake_pool_accounts.stake_pool,
             &authority.pubkey(),
-            &deposit_authority_base,
+            &deposit_authority_base.pubkey(),
             Some(new_authority.pubkey()),
             Some(fee_wallet.pubkey()),
             Some(cool_down_seconds),
@@ -73,7 +73,7 @@ async fn test_update_deposit_stake_authority() {
     let (deposit_stake_authority_pubkey, _bump_seed) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::ID,
         &stake_pool_accounts.stake_pool,
-        &deposit_authority_base,
+        &deposit_authority_base.pubkey(),
     );
 
     let account = ctx
@@ -113,7 +113,7 @@ async fn setup_with_ix() -> (
         try_from_slice_unchecked::<spl_stake_pool::state::StakePool>(&stake_pool_account.data)
             .unwrap();
 
-    let deposit_authority_base = Pubkey::new_unique();
+    let deposit_authority_base = Keypair::new();
     let authority = Keypair::new();
     create_stake_deposit_authority(
         &mut ctx,
@@ -135,7 +135,7 @@ async fn setup_with_ix() -> (
             &stake_deposit_interceptor::id(),
             &stake_pool_accounts.stake_pool,
             &authority.pubkey(),
-            &deposit_authority_base,
+            &deposit_authority_base.pubkey(),
             Some(new_authority.pubkey()),
             Some(fee_wallet.pubkey()),
             Some(cool_down_seconds),
@@ -145,7 +145,7 @@ async fn setup_with_ix() -> (
     let (deposit_stake_authority_pubkey, _bump) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
-        &deposit_authority_base,
+        &deposit_authority_base.pubkey(),
     );
     (
         ctx,

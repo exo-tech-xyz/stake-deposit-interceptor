@@ -49,11 +49,11 @@ async fn setup() -> (
     let stake_pool =
         try_from_slice_unchecked::<spl_stake_pool::state::StakePool>(&stake_pool_account.data)
             .unwrap();
-    let deposit_authority_base = Pubkey::new_unique();
+    let deposit_authority_base = Keypair::new();
     let (deposit_stake_authority_pubkey, _bump) = derive_stake_pool_deposit_stake_authority(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
-        &deposit_authority_base,
+        &deposit_authority_base.pubkey(),
     );
     // Set the StakePool's stake_deposit_authority to the interceptor program's PDA
     update_stake_deposit_authority(
@@ -162,7 +162,7 @@ async fn setup() -> (
             &stake_pool_accounts.pool_mint,
             &spl_token::id(),
             &base,
-            &deposit_authority_base,
+            &deposit_authority_base.pubkey(),
         );
 
     let tx = Transaction::new_signed_with_payer(
