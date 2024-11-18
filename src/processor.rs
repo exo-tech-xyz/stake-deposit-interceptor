@@ -247,6 +247,7 @@ impl Processor {
         let stake_pool_info = next_account_info(account_info_iter)?;
         let validator_stake_list_info = next_account_info(account_info_iter)?;
         let deposit_stake_authority_info = next_account_info(account_info_iter)?;
+        let base_info = next_account_info(account_info_iter)?;
         let withdraw_authority_info = next_account_info(account_info_iter)?;
         let stake_info = next_account_info(account_info_iter)?;
         let validator_stake_account_info = next_account_info(account_info_iter)?;
@@ -321,7 +322,7 @@ impl Processor {
         let clock = Clock::get()?;
 
         let (deposit_receipt_pda, bump_seed) =
-            derive_stake_deposit_receipt(program_id, stake_pool_info.key, &deposit_stake_args.base);
+            derive_stake_deposit_receipt(program_id, stake_pool_info.key, base_info.key);
 
         // Validate: DepositReceipt should be canonical PDA
         if deposit_receipt_pda != *deposit_receipt_info.key {
@@ -331,7 +332,7 @@ impl Processor {
         let pda_seeds = [
             DEPOSIT_RECEIPT,
             &stake_pool_info.key.to_bytes(),
-            &deposit_stake_args.base.to_bytes(),
+            &base_info.key.to_bytes(),
             &[bump_seed],
         ];
         // Create and initialize the DepositReceipt account
@@ -350,7 +351,7 @@ impl Processor {
         let deposit_receipt =
             DepositReceipt::try_from_slice_unchecked_mut(&mut deposit_receipt_data).unwrap();
 
-        deposit_receipt.base = deposit_stake_args.base;
+        deposit_receipt.base = *base_info.key;
         deposit_receipt.owner = deposit_stake_args.owner;
         deposit_receipt.stake_pool = *stake_pool_info.key;
         deposit_receipt.stake_pool_deposit_stake_authority = *deposit_stake_authority_info.key;
@@ -546,7 +547,6 @@ impl Processor {
             }
             StakeDepositInterceptorInstruction::DepositStakeWithSlippage(args) => {
                 let deposit_stake_args = DepositStakeArgs {
-                    base: args.base,
                     owner: args.owner,
                 };
                 Self::process_deposit_stake(

@@ -39,7 +39,7 @@ async fn setup() -> (
     StakePoolDepositStakeAuthority,
     Keypair,
     Pubkey,
-    Pubkey,
+    Keypair,
     Keypair,
     u64,
 ) {
@@ -148,7 +148,7 @@ async fn setup() -> (
     .await;
 
     // Generate a random Pubkey as seed for DepositReceipt PDA.
-    let deposit_receipt_base = Pubkey::new_unique();
+    let deposit_receipt_base = Keypair::new();
     (
         ctx,
         stake_pool_accounts,
@@ -202,14 +202,14 @@ async fn test_deposit_stake() {
             &stake_pool_accounts.pool_fee_account,
             &stake_pool_accounts.pool_mint,
             &spl_token::id(),
-            &deposit_receipt_base,
+            &deposit_receipt_base.pubkey(),
             &deposit_authority_base.pubkey(),
         );
 
     let tx = Transaction::new_signed_with_payer(
         &deposit_stake_instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -231,7 +231,7 @@ async fn test_deposit_stake() {
     let (deposit_receipt_pda, bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
-        &deposit_receipt_base,
+        &deposit_receipt_base.pubkey(),
     );
     let deposit_receipt = get_account_data_deserialized::<DepositReceipt>(
         &mut ctx.banks_client,
@@ -239,7 +239,7 @@ async fn test_deposit_stake() {
     )
     .await;
     assert_eq!(deposit_receipt.owner, depositor.pubkey());
-    assert_eq!(deposit_receipt.base, deposit_receipt_base);
+    assert_eq!(deposit_receipt.base, deposit_receipt_base.pubkey());
     assert_eq!(deposit_receipt.stake_pool, stake_pool_accounts.stake_pool);
     assert_eq!(
         deposit_receipt.stake_pool_deposit_stake_authority,
@@ -297,7 +297,7 @@ async fn success_error_with_slippage() {
             &stake_pool_accounts.pool_fee_account,
             &stake_pool_accounts.pool_mint,
             &spl_token::id(),
-            &deposit_receipt_base,
+            &deposit_receipt_base.pubkey(),
             &deposit_authority_base.pubkey(),
             pool_tokens_amount + 1,
         );
@@ -305,7 +305,7 @@ async fn success_error_with_slippage() {
     let tx = Transaction::new_signed_with_payer(
         &deposit_stake_with_slippage_instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -344,7 +344,7 @@ async fn success_error_with_slippage() {
             &stake_pool_accounts.pool_fee_account,
             &stake_pool_accounts.pool_mint,
             &spl_token::id(),
-            &deposit_receipt_base,
+            &deposit_receipt_base.pubkey(),
             &deposit_authority_base.pubkey(),
             pool_tokens_amount,
         );
@@ -352,7 +352,7 @@ async fn success_error_with_slippage() {
     let tx = Transaction::new_signed_with_payer(
         &deposit_stake_with_slippage_instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -362,6 +362,7 @@ async fn success_error_with_slippage() {
 async fn setup_with_ix() -> (
     ProgramTestContext,
     StakePoolAccounts,
+    Keypair,
     Pubkey,
     Pubkey,
     Keypair,
@@ -398,7 +399,7 @@ async fn setup_with_ix() -> (
             &stake_pool_accounts.pool_fee_account,
             &stake_pool_accounts.pool_mint,
             &spl_token::id(),
-            &deposit_receipt_base,
+            &deposit_receipt_base.pubkey(),
             &deposit_authority_base.pubkey(),
         );
 
@@ -410,12 +411,13 @@ async fn setup_with_ix() -> (
     let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
-        &deposit_receipt_base,
+        &deposit_receipt_base.pubkey(),
     );
 
     (
         ctx,
         stake_pool_accounts,
+        deposit_receipt_base,
         deposit_receipt_pda,
         deposit_stake_authority_pubkey,
         depositor,
@@ -428,17 +430,18 @@ async fn test_fail_invalid_system_program() {
     let (
         mut ctx,
         _stake_pool_accounts,
+        deposit_receipt_base,
         _deposit_receipt_pda,
         _deposit_stake_authority_pubkey,
         depositor,
         mut instructions,
     ) = setup_with_ix().await;
-    instructions[2].accounts[18] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
+    instructions[2].accounts[19] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
 
     let tx = Transaction::new_signed_with_payer(
         &instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -450,6 +453,7 @@ async fn test_fail_invalid_deposit_stake_authority_owner() {
     let (
         mut ctx,
         _stake_pool_accounts,
+        deposit_receipt_base,
         _deposit_receipt_pda,
         _deposit_stake_authority_pubkey,
         depositor,
@@ -460,7 +464,7 @@ async fn test_fail_invalid_deposit_stake_authority_owner() {
     let tx = Transaction::new_signed_with_payer(
         &instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -472,6 +476,7 @@ async fn test_fail_invalid_stake_deposit_authority_address() {
     let (
         mut ctx,
         _stake_pool_accounts,
+        deposit_receipt_base,
         _deposit_receipt_pda,
         deposit_stake_authority_pubkey,
         depositor,
@@ -483,7 +488,7 @@ async fn test_fail_invalid_stake_deposit_authority_address() {
     let tx = Transaction::new_signed_with_payer(
         &instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -502,6 +507,7 @@ async fn test_fail_invalid_pool_token_account() {
     let (
         mut ctx,
         stake_pool_accounts,
+        deposit_receipt_base,
         _deposit_receipt_pda,
         deposit_stake_authority_pubkey,
         depositor,
@@ -512,12 +518,12 @@ async fn test_fail_invalid_pool_token_account() {
         &stake_pool_accounts.pool_mint,
     );
     let bad_account = clone_account_to_new_address(&mut ctx, &vault_token_account).await;
-    instructions[2].accounts[10] = AccountMeta::new_readonly(bad_account, false);
+    instructions[2].accounts[11] = AccountMeta::new_readonly(bad_account, false);
 
     let tx = Transaction::new_signed_with_payer(
         &instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -534,6 +540,7 @@ async fn test_fail_invalid_deposit_receipt_owner() {
     let (
         mut ctx,
         _stake_pool_accounts,
+        deposit_receipt_base,
         deposit_receipt_pda,
         _deposit_stake_authority_pubkey,
         depositor,
@@ -545,7 +552,7 @@ async fn test_fail_invalid_deposit_receipt_owner() {
     let tx = Transaction::new_signed_with_payer(
         &instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -557,6 +564,7 @@ async fn test_fail_deposit_receipt_not_empty() {
     let (
         mut ctx,
         _stake_pool_accounts,
+        deposit_receipt_base,
         deposit_receipt_pda,
         _deposit_stake_authority_pubkey,
         depositor,
@@ -566,7 +574,7 @@ async fn test_fail_deposit_receipt_not_empty() {
     let tx = Transaction::new_signed_with_payer(
         &instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -585,6 +593,7 @@ async fn test_fail_invalid_deposit_receipt() {
     let (
         mut ctx,
         _stake_pool_accounts,
+        deposit_receipt_base,
         _deposit_receipt_pda,
         _deposit_stake_authority_pubkey,
         depositor,
@@ -595,7 +604,7 @@ async fn test_fail_invalid_deposit_receipt() {
     let tx = Transaction::new_signed_with_payer(
         &instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 

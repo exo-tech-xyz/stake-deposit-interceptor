@@ -42,7 +42,7 @@ async fn setup() -> (
     StakePoolDepositStakeAuthority,
     Keypair,
     Pubkey,
-    Pubkey,
+    Keypair,
     Keypair,
     u64,
     Pubkey,
@@ -155,7 +155,7 @@ async fn setup() -> (
     .await;
 
     // Generate a random Pubkey as seed for DepositReceipt PDA.
-    let deposit_receipt_base = Pubkey::new_unique();
+    let deposit_receipt_base = Keypair::new();
     let deposit_stake_instructions =
         stake_deposit_interceptor::instruction::create_deposit_stake_instruction(
             &stake_deposit_interceptor::id(),
@@ -173,14 +173,14 @@ async fn setup() -> (
             &stake_pool_accounts.pool_fee_account,
             &stake_pool_accounts.pool_mint,
             &spl_token::id(),
-            &deposit_receipt_base,
+            &deposit_receipt_base.pubkey(),
             &deposit_authority_base.pubkey(),
         );
 
     let tx = Transaction::new_signed_with_payer(
         &deposit_stake_instructions,
         Some(&depositor.pubkey()),
-        &[&depositor],
+        &[&depositor, &deposit_receipt_base],
         ctx.last_blockhash,
     );
 
@@ -226,7 +226,7 @@ async fn test_success_claim_pool_tokens() {
     let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
-        &deposit_receipt_base,
+        &deposit_receipt_base.pubkey(),
     );
 
     let deposit_receipt = get_account_data_deserialized::<DepositReceipt>(
@@ -327,7 +327,7 @@ async fn setup_with_ix() -> (
     let (deposit_receipt_pda, _bump_seed) = derive_stake_deposit_receipt(
         &stake_deposit_interceptor::id(),
         &stake_pool_accounts.stake_pool,
-        &deposit_receipt_base,
+        &deposit_receipt_base.pubkey(),
     );
 
     let fee_token_account =
