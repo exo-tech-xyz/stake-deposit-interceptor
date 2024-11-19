@@ -3,6 +3,10 @@ name = "stake-deposit-interceptor"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "crank_server"
+path = "crank_server/main.rs"
+
 [dependencies]
 borsh = "1.5.1"
 bytemuck = "1.19.0"
