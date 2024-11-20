@@ -1,0 +1,32 @@
+[package]
+name = "stake-deposit-interceptor"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+borsh = "1.5.1"
+bytemuck = "1.19.0"
+jito-bytemuck = { git = "https://github.com/jito-foundation/restaking.git", rev = "4c37d76102496edd784bb25436cb9c4340f0df01" }
+num-derive = "0.4.2"
+num-traits = "0.2.19"
+solana-program = "2.0.14"
+spl-associated-token-account = { version = "5.0.1", features = ["no-entrypoint"] }
+spl-pod = { version = "0.4.0", features = ["borsh"] }
+spl-program-error = "0.5.0"
+spl-program-error-derive = "0.4.1"
+spl-stake-pool = { version = "2.0.0", features = ["no-entrypoint"] }
+spl-token = "6.0.0"
+spl-token-2022 = "5.0.2"
+thiserror = "1.0.65"
+
+[dev-dependencies]
+solana-program-test = "2.0.14"
+solana-sdk = "2.0.14"
+solana-vote-program = "2.0.14"
+tokio = "1.41.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
