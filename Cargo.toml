@@ -1,5 +1,10 @@
 [workspace]
 members = [
+  "api",
   "program",
 ]
 exclude = ["cli"]
+
+[workspace.dependencies]
+solana-client = ">=1.18.11,<=2"
+solana-rpc-client = ">=1.18.11,<=2"
