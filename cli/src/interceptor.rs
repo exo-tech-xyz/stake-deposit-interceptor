@@ -140,6 +140,8 @@ pub fn command_deposit_stake(
     // Ephemoral keypair for PDA seed of DepositReceipt
     let deposit_receipt_base = Keypair::new();
 
+    println!("Created DepositReceipt {}", deposit_receipt_base.pubkey());
+
     let ixs = create_deposit_stake_instruction(
         &stake_deposit_interceptor::id(),
         &config.fee_payer.pubkey(),
