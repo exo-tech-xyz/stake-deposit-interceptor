@@ -23,8 +23,10 @@ FEE_WALLET=$(solana-keygen pubkey "$FEE_WALLET_KEYPAIR")
 AUTHORITY=$(solana-keygen pubkey "$AUTHORITY_KEYPAIR")
 FUNDING_TYPE="stake-deposit"  # or the appropriate funding type
 
+echo "creating deposit authority"
+
 # create stake_deposit_authority and set pubkey to var
-STAKE_DEPOSIT_AUTHORITY=$(../target/debug/spl-stake-pool-interceptor interceptor create-stake-deposit-authority --pool $STAKE_POOL --fee-wallet $FEE_WALLET --authority $AUTHORITY_KEYPAIR --cool-down-seconds 200 --initial-fee-bps 100 | tail -1)
+STAKE_DEPOSIT_AUTHORITY=$(../target/debug/spl-stake-pool-interceptor interceptor create-stake-deposit-authority --pool $STAKE_POOL --fee-wallet $FEE_WALLET --authority $AUTHORITY --cool-down-seconds 200 --initial-fee-bps 100 | tail -1)
 
 # Update the stake pool's stake_deposit_authority
 echo "Updating stake pool's stake_deposit_authority to $STAKE_DEPOSIT_AUTHORITY"

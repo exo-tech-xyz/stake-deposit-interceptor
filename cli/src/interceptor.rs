@@ -49,7 +49,7 @@ pub fn command_create_stake_deposit_authority(
     fee_wallet: &Pubkey,
     cool_down_seconds: u64,
     initial_fee_bps: u32,
-    authority: Box<dyn Signer>,
+    authority: &Pubkey,
 ) -> CommandResult {
     // Ephemeral keypair used for stake_deposit_authority PDA seed.
     let base = Keypair::new();
@@ -64,7 +64,7 @@ pub fn command_create_stake_deposit_authority(
         fee_wallet,
         cool_down_seconds,
         initial_fee_bps,
-        &authority.pubkey(),
+        authority,
         &base.pubkey(),
     );
 
@@ -78,7 +78,7 @@ pub fn command_create_stake_deposit_authority(
     let transaction = checked_transaction_with_signers(
         config,
         &[ix],
-        &[&config.fee_payer, &authority, &base_signer],
+        &[&config.fee_payer, &base_signer],
     )?;
     send_transaction(config, transaction)?;
     println!("Created stake_deposit_authority:");
