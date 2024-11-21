@@ -35,7 +35,7 @@ pub struct StakePoolDepositStakeAuthority {
     pub fee_wallet: Pubkey,
     /// Bump seed for derivation
     pub bump_seed: u8,
-    // reserved bytes 
+    // reserved bytes
     reserved: [u8; 256],
 }
 
@@ -72,7 +72,7 @@ pub struct DepositReceipt {
     pub initial_fee_bps: PodU32,
     /// Bump seed for derivation
     pub bump_seed: u8,
-    // reserved bytes 
+    // reserved bytes
     reserved: [u8; 256],
 }
 
@@ -97,17 +97,17 @@ impl DepositReceipt {
         if cool_down_time_left == 0 {
             return 0;
         }
-        let fee_rate_bps = u64::from(u32::from(self.initial_fee_bps))
-            .checked_mul(cool_down_time_left)
-            .expect("overflow")
-            .div_ceil(cool_down_seconds);
+
         let total_amount = u64::from(self.lst_amount);
-        let fee_amount = total_amount
-            .checked_mul(fee_rate_bps)
+        let fee_amount = u128::from(u32::from(self.initial_fee_bps))
+            .checked_mul(cool_down_time_left as u128)
             .expect("overflow")
-            // 10_000 is the equivalent of 100% in bps
+            .checked_mul(total_amount as u128)
+            .expect("overflow")
+            .checked_div(cool_down_seconds as u128)
+            .expect("overflow")
             .div_ceil(Self::FEE_BPS_DENOMINATOR.into());
-        fee_amount
+        u64::try_from(fee_amount).unwrap()
     }
 }
 

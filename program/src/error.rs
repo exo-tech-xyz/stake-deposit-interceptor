@@ -47,4 +47,7 @@ pub enum StakeDepositInterceptorError {
     /// 14 : Fee rate exceeds the max limit
     #[error("Fee rate exceeds the max limit")]
     InitialFeeRateMaxExceeded,
+    /// 15 : Invalid pool mint
+    #[error("Invalid pool mint")]
+    InvalidPoolMint,
 }
