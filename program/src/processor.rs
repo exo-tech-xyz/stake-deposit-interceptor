@@ -62,8 +62,8 @@ impl Processor {
         // Validate: StakePoolDepositStakeAuthority should be owned by system program and not initialized
         check_system_account(deposit_stake_authority_info, true)?;
 
-        // Validate: authority and base signed the TX
-        if !authority_info.is_signer || !base_info.is_signer {
+        // Validate: base signed the TX
+        if !base_info.is_signer {
             return Err(StakeDepositInterceptorError::SignatureMissing.into());
         }
 
@@ -212,10 +212,6 @@ impl Processor {
         }
 
         if let Some(new_authority) = new_authority_info {
-            // Validate: new_authority has also signed the transaction
-            if !new_authority.is_signer {
-                return Err(StakeDepositInterceptorError::SignatureMissing.into());
-            }
             deposit_stake_authority.authority = *new_authority.key;
         }
 
