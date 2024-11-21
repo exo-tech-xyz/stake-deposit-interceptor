@@ -6,5 +6,11 @@ members = [
 exclude = ["cli"]
 
 [workspace.dependencies]
+jito-bytemuck = { git = "https://github.com/jito-foundation/restaking.git", rev = "4c37d76102496edd784bb25436cb9c4340f0df01" }
 solana-client = ">=1.18.11,<=2"
 solana-rpc-client = ">=1.18.11,<=2"
+solana-rpc-client-api = ">=1.18.11,<=2"
+solana-sdk = "2.0.14"
+spl-stake-pool = { version = "2.0.0", features = ["no-entrypoint"] }
+spl-token = "6.0.0"
+spl-token-2022 = "5.0.2"

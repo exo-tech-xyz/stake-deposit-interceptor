@@ -5687,10 +5687,18 @@ name = "stake-deposit-interceptor-api"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bincode",
  "clap 4.5.21",
+ "futures",
+ "jito-bytemuck",
  "serde",
  "serde_json",
  "solana-rpc-client",
+ "solana-rpc-client-api",
+ "solana-sdk",
+ "spl-stake-pool",
+ "spl-token",
+ "stake-deposit-interceptor",
  "thiserror",
  "tokio",
  "tracing",
