@@ -21,15 +21,19 @@ use stake_deposit_interceptor::{
     instruction::create_deposit_stake_instruction, state::StakePoolDepositStakeAuthority,
 };
 
-use crate::error::ApiError;
+use crate::{error::ApiError, utils::pubkey_from_str};
 
 use super::RouterState;
 
 #[derive(Deserialize)]
 pub(crate) struct GetDepositStakeQuery {
+    #[serde(deserialize_with = "pubkey_from_str")]
     payer: Pubkey,
+    #[serde(deserialize_with = "pubkey_from_str")]
     stake: Pubkey,
+    #[serde(deserialize_with = "pubkey_from_str")]
     stake_deposit_authority: Pubkey,
+    #[serde(deserialize_with = "pubkey_from_str")]
     withdraw_authority: Pubkey,
     referrer_token_account: Option<Pubkey>,
 }
@@ -56,7 +60,7 @@ pub(crate) async fn get_deposit_stake_instruction(
     let stake_deposit_authority = StakePoolDepositStakeAuthority::try_from_slice_unchecked(
         stake_deposit_authority_account_data.as_slice(),
     )
-    .map_err(|_| ApiError::InternalError)?;
+    .map_err(|_| ApiError::ParseStakeDepositAuthorityError(query.stake_deposit_authority))?;
 
     let stake_pool_account_data_fut = state
         .rpc_client
@@ -67,13 +71,13 @@ pub(crate) async fn get_deposit_stake_instruction(
     let stake_pool_account_data = stake_pool_account_data.map_err(ApiError::RpcError)?;
     let stake_account_data = stake_account_data.map_err(ApiError::RpcError)?;
     let stake_pool = try_from_slice_unchecked::<StakePool>(stake_pool_account_data.as_slice())
-        .map_err(|_| ApiError::InternalError)?;
-    let stake_state: stake::state::StakeStateV2 =
-        deserialize(stake_account_data.as_slice()).map_err(|_| ApiError::InternalError)?;
+        .map_err(|_| ApiError::ParseStakePoolError(stake_deposit_authority.stake_pool))?;
+    let stake_state: stake::state::StakeStateV2 = deserialize(stake_account_data.as_slice())
+        .map_err(|_| ApiError::ParseStakeStateError(query.stake))?;
 
     let vote_account = match stake_state {
         stake::state::StakeStateV2::Stake(_, stake, _) => Ok(stake.delegation.voter_pubkey),
-        _ => Err(ApiError::InternalError),
+        _ => Err(ApiError::InvalidStakeVoteAccount),
     }?;
 
     let validator_list_account_data = state
@@ -82,11 +86,11 @@ pub(crate) async fn get_deposit_stake_instruction(
         .await?;
     let validator_list =
         try_from_slice_unchecked::<ValidatorList>(validator_list_account_data.as_slice())
-            .map_err(|_| ApiError::InternalError)?;
+            .map_err(|_| ApiError::ParseValidatorListError(stake_pool.validator_list))?;
 
     let validator_stake_info = validator_list
         .find(&vote_account)
-        .ok_or(ApiError::InternalError)?;
+        .ok_or(ApiError::InvalidStakeVoteAccount)?;
     let validator_seed = NonZeroU32::new(validator_stake_info.validator_seed_suffix.into());
     // Calculate validator stake account address linked to the pool
     let (validator_stake_account, _) = find_stake_program_address(
