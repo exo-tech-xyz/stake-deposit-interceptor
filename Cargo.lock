@@ -5687,6 +5687,7 @@ name = "stake-deposit-interceptor-api"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "bincode",
  "clap 4.5.21",
  "futures",

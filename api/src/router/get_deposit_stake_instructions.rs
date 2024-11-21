@@ -9,9 +9,7 @@ use bincode::deserialize;
 use futures::future;
 use jito_bytemuck::AccountDeserialize;
 use serde::{Deserialize, Serialize};
-use solana_sdk::{
-    borsh1::try_from_slice_unchecked, instruction::Instruction, pubkey::Pubkey, stake,
-};
+use solana_sdk::{borsh1::try_from_slice_unchecked, pubkey::Pubkey, stake};
 use spl_stake_pool::{
     find_stake_program_address, find_withdraw_authority_program_address,
     state::{StakePool, ValidatorList},
@@ -20,7 +18,7 @@ use stake_deposit_interceptor::{
     instruction::create_deposit_stake_instruction, state::StakePoolDepositStakeAuthority,
 };
 
-use crate::{error::ApiError, utils::pubkey_from_str};
+use crate::{error::ApiError, utils::{pubkey_from_str, Instruction}};
 
 use super::RouterState;
 
@@ -51,9 +49,8 @@ struct GetDepositStakeResponse {
     instructions: Vec<Instruction>,
 }
 
-// TODO could DRY up this code with cli in the future, when CLI can adopt 2.X versions of solana deps.
-
 /// Constructs the instructions necessary to `DepositStake` via the stake-pool-interceptor program.
+/// 
 pub(crate) async fn get_deposit_stake_instructions(
     State(state): State<Arc<RouterState>>,
     Query(query): Query<GetDepositStakeQuery>,
@@ -137,5 +134,8 @@ pub(crate) async fn get_deposit_stake_instructions(
         &stake_deposit_authority.base,
     );
 
-    Ok(Json(GetDepositStakeResponse { instructions: ixs }))
+    let instructions: Vec<Instruction> =
+        ixs.iter().map(|ix| Instruction::from(ix.clone())).collect();
+
+    Ok(Json(GetDepositStakeResponse { instructions }))
 }
