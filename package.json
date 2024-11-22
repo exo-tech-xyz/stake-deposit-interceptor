@@ -1,0 +1,17 @@
+{
+    "scripts": {
+        "generate": "shank generate",
+        "generate:sdk": "solita"
+    },
+    "name": "stake-deposit-interceptor",
+    "version": "1.0.0",
+    "description": "A Solana program intended to become the `stake_deposit_authority` of a StakePool deployed via the SPL stake-pool program. This program allows an admin to set a fee (in basis points) on the LST received from DepositStake that linearly decays to zero over a set number of seconds. This mechanism disincentivizes the immediate transfer of the LST after deposit.",
+    "main": "index.js",
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@metaplex-foundation/shank-js": "^0.1.7",
+        "@metaplex-foundation/solita": "^0.20.1"
+    }
+}

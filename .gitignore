@@ -2,3 +2,7 @@
 **/test-ledger
 **/keys
 **/local_validators.txt
+**/node_modules/
+**/.crates/
+**/dist/
+.DS_Store
