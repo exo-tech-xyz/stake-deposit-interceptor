@@ -11,4 +11,15 @@ module.exports = {
       patterns: ["**/*.rs"],
     },
   ],
+  // Add this types configuration
+  types: {
+    PodU64: {
+      kind: "struct",
+      fields: [["value", "u64"]]
+    },
+    PodU32: {
+      kind: "struct",
+      fields: [["value", "u32"]]
+    }
+  }
 };

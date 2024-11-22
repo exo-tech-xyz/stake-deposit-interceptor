@@ -348,6 +348,130 @@
       }
     }
   ],
+  "accounts": [
+    {
+      "name": "StakePoolDepositStakeAuthority",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "base",
+            "type": "publicKey"
+          },
+          {
+            "name": "stakePool",
+            "type": "publicKey"
+          },
+          {
+            "name": "poolMint",
+            "type": "publicKey"
+          },
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "vault",
+            "type": "publicKey"
+          },
+          {
+            "name": "stakePoolProgramId",
+            "type": "publicKey"
+          },
+          {
+            "name": "coolDownSeconds",
+            "type": {
+              "defined": "u64"
+            }
+          },
+          {
+            "name": "initalFeeBps",
+            "type": {
+              "defined": "u32"
+            }
+          },
+          {
+            "name": "feeWallet",
+            "type": "publicKey"
+          },
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                256
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "DepositReceipt",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "base",
+            "type": "publicKey"
+          },
+          {
+            "name": "owner",
+            "type": "publicKey"
+          },
+          {
+            "name": "stakePool",
+            "type": "publicKey"
+          },
+          {
+            "name": "stakePoolDepositStakeAuthority",
+            "type": "publicKey"
+          },
+          {
+            "name": "depositTime",
+            "type": {
+              "defined": "u64"
+            }
+          },
+          {
+            "name": "lstAmount",
+            "type": {
+              "defined": "u64"
+            }
+          },
+          {
+            "name": "coolDownSeconds",
+            "type": {
+              "defined": "u64"
+            }
+          },
+          {
+            "name": "initialFeeBps",
+            "type": {
+              "defined": "u32"
+            }
+          },
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                256
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
   "types": [
     {
       "name": "InitStakePoolDepositStakeAuthorityArgs",
@@ -422,71 +546,12 @@
           }
         ]
       }
-    },
-    {
-      "name": "DepositReceipt",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "base",
-            "type": "publicKey"
-          },
-          {
-            "name": "owner",
-            "type": "publicKey"
-          },
-          {
-            "name": "stakePool",
-            "type": "publicKey"
-          },
-          {
-            "name": "stakePoolDepositStakeAuthority",
-            "type": "publicKey"
-          },
-          {
-            "name": "depositTime",
-            "type": {
-              "defined": "PodU64"
-            }
-          },
-          {
-            "name": "lstAmount",
-            "type": {
-              "defined": "PodU64"
-            }
-          },
-          {
-            "name": "coolDownSeconds",
-            "type": {
-              "defined": "PodU64"
-            }
-          },
-          {
-            "name": "initialFeeBps",
-            "type": {
-              "defined": "PodU32"
-            }
-          },
-          {
-            "name": "bumpSeed",
-            "type": "u8"
-          },
-          {
-            "name": "reserved",
-            "type": {
-              "array": [
-                "u8",
-                256
-              ]
-            }
-          }
-        ]
-      }
     }
   ],
   "metadata": {
     "origin": "shank",
-    "address": "5TAiuAh3YGDbwjEruC1ZpXTJWdNDS7Ur7VeqNNiHMmGV"
+    "address": "5TAiuAh3YGDbwjEruC1ZpXTJWdNDS7Ur7VeqNNiHMmGV",
+    "binaryVersion": "0.3.0",
+    "libVersion": "0.3.0"
   }
 }

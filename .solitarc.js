@@ -1,11 +1,16 @@
 const path = require('path');
+const programDir = path.join(__dirname, 'program');
+const idlDir = path.join(__dirname, 'program', 'idl');
+const sdkDir = path.join(__dirname, 'js', 'src', 'generated');
+const binaryInstallDir = path.join(__dirname, '.crates');
 
 module.exports = {
-  idl: path.resolve(__dirname, "./program/idl/stake_deposit_interceptor.json"),
-  sdk: path.resolve(__dirname, "./js/src/generated"),
-  program: {
-    name: "stake_deposit_interceptor",
-    id: "5TAiuAh3YGDbwjEruC1ZpXTJWdNDS7Ur7VeqNNiHMmGV",
-    path: path.resolve(__dirname, "./program")
-  }
+  idlGenerator: 'shank',
+  programName: 'stake_deposit_interceptor',
+  programId: '5TAiuAh3YGDbwjEruC1ZpXTJWdNDS7Ur7VeqNNiHMmGV',
+  idlDir,
+  sdkDir,
+  binaryInstallDir,
+  programDir,
+  removeExistingIdl: false,
 };
