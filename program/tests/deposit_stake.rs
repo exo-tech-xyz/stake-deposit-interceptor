@@ -281,7 +281,7 @@ async fn success_error_with_slippage() {
     .unwrap();
 
     let deposit_stake_with_slippage_instructions =
-        stake_deposit_interceptor::instruction::create_deposit_stake_with_slippage_nstruction(
+        stake_deposit_interceptor::instruction::create_deposit_stake_with_slippage_instruction(
             &stake_deposit_interceptor::id(),
             &depositor.pubkey(),
             &spl_stake_pool::id(),
@@ -328,7 +328,7 @@ async fn success_error_with_slippage() {
     };
 
     let deposit_stake_with_slippage_instructions =
-        stake_deposit_interceptor::instruction::create_deposit_stake_with_slippage_nstruction(
+        stake_deposit_interceptor::instruction::create_deposit_stake_with_slippage_instruction(
             &stake_deposit_interceptor::id(),
             &depositor.pubkey(),
             &spl_stake_pool::id(),

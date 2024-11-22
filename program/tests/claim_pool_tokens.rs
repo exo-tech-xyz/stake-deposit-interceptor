@@ -747,3 +747,31 @@ async fn test_fail_destination_token_account_not_owned_by_owner() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn test_fail_invalid_pool_mint() {
+    // TODO
+    let (
+        mut ctx,
+        stake_pool_accounts,
+        depositor,
+        _deposit_receipt_pda,
+        _deposit_stake_authority_pubkey,
+        mut instructions,
+    ) = setup_with_ix().await;
+    instructions[1].accounts[6] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&depositor.pubkey()),
+        &[&depositor],
+        ctx.last_blockhash,
+    );
+
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidPoolMint as u32),
+    )
+    .await;
+}

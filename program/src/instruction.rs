@@ -219,7 +219,7 @@ pub fn create_init_deposit_stake_authority_instruction(
         AccountMeta::new(*payer, true),
         AccountMeta::new(deposit_stake_authority_pubkey, false),
         AccountMeta::new(vault_ata, false),
-        AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new_readonly(*authority, false),
         AccountMeta::new_readonly(*base, true),
         AccountMeta::new_readonly(*stake_pool, false),
         AccountMeta::new_readonly(*stake_pool_mint, false),
@@ -260,7 +260,7 @@ pub fn create_update_deposit_stake_authority_instruction(
         AccountMeta::new_readonly(*authority, true),
     ];
     if let Some(new_authority) = new_authority {
-        accounts.push(AccountMeta::new(new_authority, true));
+        accounts.push(AccountMeta::new_readonly(new_authority, false));
     }
     Instruction {
         program_id: *program_id,
@@ -416,7 +416,7 @@ pub fn create_deposit_stake_instruction(
 
 /// Creates instructions required to deposit into a stake pool, given a stake
 /// account owned by the user. StakePool program verifies the minimum tokens are minted.
-pub fn create_deposit_stake_with_slippage_nstruction(
+pub fn create_deposit_stake_with_slippage_instruction(
     program_id: &Pubkey,
     payer: &Pubkey,
     stake_pool_program_id: &Pubkey,

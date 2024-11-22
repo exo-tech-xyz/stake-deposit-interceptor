@@ -2,3 +2,4 @@
 **/test-ledger
 **/keys
 **/local_validators.txt
+cranker/.env
