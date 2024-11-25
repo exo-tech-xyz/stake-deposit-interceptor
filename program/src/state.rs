@@ -12,7 +12,7 @@ pub enum StakeDepositInterceptorDiscriminators {
 }
 
 /// Variables to construct linearly decaying fees over some period of time.
-#[derive(ShankAccount)]
+#[cfg_attr(feature = "idl", derive(ShankAccount))]
 #[repr(C)]
 #[derive(Clone, Copy, AccountDeserialize, Debug, PartialEq, Pod, Zeroable)]
 pub struct StakePoolDepositStakeAuthority {
@@ -52,7 +52,7 @@ impl StakePoolDepositStakeAuthority {
 }
 
 /// Representation of some amount of claimable LST
-#[derive(ShankAccount)]
+#[cfg_attr(feature = "idl", derive(ShankAccount))]
 #[repr(C)]
 #[derive(Clone, Copy, AccountDeserialize, BorshSerialize, Debug, PartialEq, Pod, Zeroable)]
 pub struct DepositReceipt {
