@@ -380,15 +380,11 @@
           },
           {
             "name": "coolDownSeconds",
-            "type": {
-              "defined": "u64"
-            }
+            "type": "u64"
           },
           {
             "name": "initalFeeBps",
-            "type": {
-              "defined": "u32"
-            }
+            "type": "u32"
           },
           {
             "name": "feeWallet",
@@ -433,27 +429,19 @@
           },
           {
             "name": "depositTime",
-            "type": {
-              "defined": "u64"
-            }
+            "type": "u64"
           },
           {
             "name": "lstAmount",
-            "type": {
-              "defined": "u64"
-            }
+            "type": "u64"
           },
           {
             "name": "coolDownSeconds",
-            "type": {
-              "defined": "u64"
-            }
+            "type": "u64"
           },
           {
             "name": "initialFeeBps",
-            "type": {
-              "defined": "u32"
-            }
+            "type": "u32"
           },
           {
             "name": "bumpSeed",
