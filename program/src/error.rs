@@ -50,4 +50,7 @@ pub enum StakeDepositInterceptorError {
     /// 15 : Invalid pool mint
     #[error("Invalid pool mint")]
     InvalidPoolMint,
+    /// 16 : Invalid stake-pool program
+    #[error("StakePool program is invalid")]
+    InvalidStakePoolProgram,
 }

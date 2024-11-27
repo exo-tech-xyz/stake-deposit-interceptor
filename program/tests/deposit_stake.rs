@@ -449,6 +449,34 @@ async fn test_fail_invalid_system_program() {
 }
 
 #[tokio::test]
+async fn test_fail_invalid_stake_pool_program() {
+    let (
+        mut ctx,
+        _stake_pool_accounts,
+        deposit_receipt_base,
+        _deposit_receipt_pda,
+        _deposit_stake_authority_pubkey,
+        depositor,
+        mut instructions,
+    ) = setup_with_ix().await;
+    instructions[2].accounts[1] = AccountMeta::new_readonly(Pubkey::new_unique(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&depositor.pubkey()),
+        &[&depositor, &deposit_receipt_base],
+        ctx.last_blockhash,
+    );
+
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidStakePoolProgram as u32),
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_fail_invalid_deposit_stake_authority_owner() {
     let (
         mut ctx,
