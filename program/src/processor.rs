@@ -273,6 +273,11 @@ impl Processor {
         // Validate: DepositReceipt should be owned by system program and not initialized
         check_system_account(deposit_receipt_info, true)?;
 
+        // Validate: base signed the TX
+        if !base_info.is_signer {
+            return Err(StakeDepositInterceptorError::SignatureMissing.into());
+        }
+
         // NOTE: we assume that stake-pool program makes all of the assertions that the SPL stake-pool program does.
 
         let deposit_stake_authority_data = deposit_stake_authority_info.try_borrow_data()?;

@@ -57,7 +57,7 @@ pub enum StakeDepositInterceptorInstruction {
     ///   0. `[w,s]` Payer that will fund the StakePoolDepositStakeAuthority account.
     ///   1. `[w]` New StakePoolDepositStakeAuthority to create.
     ///   2. `[w]` New ATA owned by the `StakePoolDepositStakeAuthority` to create.
-    ///   3. `[s]` Authority
+    ///   3. `[]` Authority
     ///   4. `[s]` Base for PDA seed
     ///   5. `[]` StakePool
     ///   6. `[]` StakePool's Pool Mint
@@ -82,10 +82,10 @@ pub enum StakeDepositInterceptorInstruction {
     ///
     ///   0. `[w]` StakePoolDepositStakeAuthority PDA to be updated
     ///   1. `[s]` Authority
-    ///   2. `[s]` (Optional) New authority
+    ///   2. `[]` (Optional) New authority
     #[cfg_attr(feature = "idl", account(0, writable, name = "deposit_stake_authority", desc = "PDA storing deposit authority data"))]
     #[cfg_attr(feature = "idl", account(1, signer, name = "authority", desc = "Authority that can update the deposit authority"))]
-    #[cfg_attr(feature = "idl", account(2, signer, optional, name = "new_authority", desc = "Optional new authority"))]
+    #[cfg_attr(feature = "idl", account(2, optional, name = "new_authority", desc = "Optional new authority"))]
     UpdateStakePoolDepositStakeAuthority(UpdateStakePoolDepositStakeAuthorityArgs),
 
     ///   Deposit some stake into the pool. The "pool" token minted is held by the DepositReceipt's
@@ -97,7 +97,7 @@ pub enum StakeDepositInterceptorInstruction {
     ///   2. `[w]` DepositReceipt to be created
     ///   3. `[w]` Stake pool
     ///   4. `[w]` Validator stake list storage account
-    ///   5. `[s]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
+    ///   5. `[]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
     ///   6. `[s]` Base for PDA seed
     ///   7. `[]` Stake pool withdraw authority
     ///   8. `[w]` Stake account to join the pool
@@ -126,7 +126,7 @@ pub enum StakeDepositInterceptorInstruction {
     ///   2. `[w]` DepositReceipt to be created
     ///   3. `[w]` Stake pool
     ///   4. `[w]` Validator stake list storage account
-    ///   5. `[s]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
+    ///   5. `[]` Stake pool deposit authority (aka the StakePoolDepositStakeAuthority PDA)
     ///   6. `[s]` Base for PDA seed
     ///   7. `[]` Stake pool withdraw authority
     ///   8. `[w]` Stake account to join the pool
