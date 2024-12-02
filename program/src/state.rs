@@ -101,14 +101,16 @@ impl DepositReceipt {
         }
 
         let total_amount = u64::from(self.lst_amount);
+        // Denominator will never be 0, div_ceil is safe to use.
+        let denominator = cool_down_seconds
+            .checked_mul(u64::from(Self::FEE_BPS_DENOMINATOR))
+            .expect("overflow");
         let fee_amount = u128::from(u32::from(self.initial_fee_bps))
             .checked_mul(cool_down_time_left as u128)
             .expect("overflow")
             .checked_mul(total_amount as u128)
             .expect("overflow")
-            .checked_div(cool_down_seconds as u128)
-            .expect("overflow")
-            .div_ceil(Self::FEE_BPS_DENOMINATOR.into());
+            .div_ceil(denominator as u128);
         u64::try_from(fee_amount).unwrap()
     }
 }
