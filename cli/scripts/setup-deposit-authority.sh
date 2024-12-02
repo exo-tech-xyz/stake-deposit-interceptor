@@ -1,41 +1,93 @@
+#!/bin/bash
+set -e
+
+echo "Building spl-stake-pool-interceptor..."
+cargo build
+
+solana-keygen new -o ./keys/fee-wallet.json  
+
 STAKE_POOL_KEYPAIR_PATH="./keys/stake-pool.json"
-FEE_WALLET_KEYPAIR="./keys/identity_1.json"
+FEE_WALLET_KEYPAIR_PATH="./keys/fee-wallet.json"
+AUTHORITY_KEYPAIR_PATH=$(solana config get | grep "Keypair Path" | awk '{print $3}')
 
-# TODO update authority keypair to be that of the cli config manager?
-AUTHORITY_KEYPAIR=$(solana config get | grep "Keypair Path" | awk '{print $3}')
-
+# Verify keypair files exist
 if [ ! -f "$STAKE_POOL_KEYPAIR_PATH" ]; then
-  echo "Error: Keypair file not found at $STAKE_POOL_KEYPAIR_PATH"
-  exit 1
+    echo "Error: Stake pool keypair not found at $STAKE_POOL_KEYPAIR_PATH"
+    exit 1
 fi
 
-if [ ! -f "$FEE_WALLET_KEYPAIR" ]; then
-  echo "Error: Keypair file not found at $FEE_WALLET_KEYPAIR"
-  exit 1
-fi
-if [ ! -f "$AUTHORITY_KEYPAIR" ]; then
-  echo "Error: Keypair file not found at $AUTHORITY_KEYPAIR"
-  exit 1
+if [ ! -f "$FEE_WALLET_KEYPAIR_PATH" ]; then
+    echo "Error: Fee wallet keypair not found at $FEE_WALLET_KEYPAIR_PATH"
+    exit 1
 fi
 
+# Get public keys
 STAKE_POOL=$(solana-keygen pubkey "$STAKE_POOL_KEYPAIR_PATH")
-FEE_WALLET=$(solana-keygen pubkey "$FEE_WALLET_KEYPAIR")
-AUTHORITY=$(solana-keygen pubkey "$AUTHORITY_KEYPAIR")
-FUNDING_TYPE="stake-deposit"  # or the appropriate funding type
+FEE_WALLET=$(solana-keygen pubkey "$FEE_WALLET_KEYPAIR_PATH")
+AUTHORITY=$(solana-keygen pubkey "$AUTHORITY_KEYPAIR_PATH")
 
-echo "creating deposit authority"
+echo "STAKE_POOL: $STAKE_POOL"
+echo "FEE_WALLET: $FEE_WALLET"
+echo "AUTHORITY: $AUTHORITY"
 
-# create stake_deposit_authority and set pubkey to var
-STAKE_DEPOSIT_AUTHORITY=$(../target/debug/spl-stake-pool-interceptor interceptor create-stake-deposit-authority --pool $STAKE_POOL --fee-wallet $FEE_WALLET --authority $AUTHORITY --cool-down-seconds 200 --initial-fee-bps 100 | tail -1)
+# Fund fee wallet if needed
+echo "Funding fee wallet..."
+solana transfer --keypair "$AUTHORITY_KEYPAIR_PATH" $FEE_WALLET 1 --allow-unfunded-recipient
+sleep 5
 
-# Update the stake pool's stake_deposit_authority
-echo "Updating stake pool's stake_deposit_authority to $STAKE_DEPOSIT_AUTHORITY"
-spl-stake-pool set-funding-authority $STAKE_POOL $FUNDING_TYPE $STAKE_DEPOSIT_AUTHORITY
+# Get pool token mint
+echo "Getting pool token mint..."
+POOL_TOKEN_MINT=$(spl-stake-pool list $STAKE_POOL | grep "Pool Token Mint:" | awk '{print $4}')
+echo "Pool Token Mint: $POOL_TOKEN_MINT"
 
-# Check if the update command was successful
-if [ $? -ne 0 ]; then
-  echo "Error: Failed to update stake_deposit_authority."
-  exit 1
+# Create token account for fee wallet
+echo "Creating token account for fee wallet..."
+FEE_WALLET_TOKEN_ACCOUNT=$(spl-token create-account $POOL_TOKEN_MINT \
+    --owner $FEE_WALLET \
+    --fee-payer "$AUTHORITY_KEYPAIR_PATH" \
+    | grep "Creating account" | awk '{print $3}' || echo "Account already exists")
+
+if [[ "$FEE_WALLET_TOKEN_ACCOUNT" == "Account already exists" ]]; then
+    echo "Finding existing token account..."
+    FEE_WALLET_TOKEN_ACCOUNT=$(spl-token accounts --owner $FEE_WALLET | grep $POOL_TOKEN_MINT | awk '{print $1}')
 fi
 
-echo "Stake pool's stake_deposit_authority updated successfully."
+echo "Fee Wallet Token Account: $FEE_WALLET_TOKEN_ACCOUNT"
+
+# Verify the token account
+echo "Verifying token account..."
+spl-token account-info --address $FEE_WALLET_TOKEN_ACCOUNT
+
+# Create stake deposit authority
+echo "Creating stake deposit authority..."
+STAKE_DEPOSIT_AUTHORITY=$(../target/debug/spl-stake-pool-interceptor interceptor create-stake-deposit-authority \
+    --pool $STAKE_POOL \
+    --fee-wallet $FEE_WALLET_TOKEN_ACCOUNT \
+    --authority $AUTHORITY \
+    --cool-down-seconds 10 \
+    --initial-fee-bps 100 | tail -1)
+
+echo "STAKE_DEPOSIT_AUTHORITY: $STAKE_DEPOSIT_AUTHORITY"
+
+# Update stake pool's funding authority
+echo "Updating stake pool's stake_deposit_authority..."
+spl-stake-pool set-funding-authority $STAKE_POOL \
+    stake-deposit \
+    $STAKE_DEPOSIT_AUTHORITY \
+    --funding-authority "$AUTHORITY_KEYPAIR_PATH"
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to update stake_deposit_authority."
+    exit 1
+fi
+
+echo "Setup completed successfully"
+
+# Print important information
+echo ""
+echo "Summary:"
+echo "Pool: $STAKE_POOL"
+echo "Pool Token Mint: $POOL_TOKEN_MINT"
+echo "Fee Wallet: $FEE_WALLET"
+echo "Fee Wallet Token Account: $FEE_WALLET_TOKEN_ACCOUNT"
+echo "Stake Deposit Authority: $STAKE_DEPOSIT_AUTHORITY"

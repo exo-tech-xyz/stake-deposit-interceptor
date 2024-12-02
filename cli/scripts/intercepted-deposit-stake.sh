@@ -1,34 +1,50 @@
-# Path to keypair
+#!/bin/bash
+set -e
+
+# Parameters:
+# $1 - Path to staker keypair (withdraw authority)
+# $2 - Stake deposit authority
+# $3 - Amount to deposit
+# $4 - Stake pool
+
 staker_keypair=$1
-# Pubkey
 stake_deposit_authority=$2
-# Number
 amount=$3
-
+stake_pool=$4
 stake_account_keypair="./keys/stake-account.json"
-vote_account_keypair="./keys/vote_2.json"
 
-staker_pubkey=$(solana-keygen pubkey "$staker_keypair")
-stake_account_pubkey=$(solana-keygen pubkey "$stake_account_keypair")
+# First update the pool
+echo "Updating stake pool..."
+spl-stake-pool update $stake_pool --no-merge
+sleep 20
+spl-stake-pool update $stake_pool
 
-# airdrop sol to staker
-solana airdrop $amount $staker_pubkey
+# Request airdrop
+echo "Requesting airdrop of $amount SOL"
+solana airdrop $amount
+sleep 5
 
-# Create keypair for Stake account
-# NOTE: will overwrite existing keypair
-solana-keygen new --no-passphrase -o $stake_account_keypair --force
+# Create stake account
+echo "Generating a new keypair"
+solana-keygen new --no-bip39-passphrase -o $stake_account_keypair --force
 
+stake_account=$(solana-keygen pubkey $stake_account_keypair)
 echo "Creating stake account"
-
-# create stake account and stake sol
-solana create-stake-account --from $staker_keypair $stake_account_keypair $amount --stake-authority $staker_keypair --withdraw-authority $staker_keypair
+solana create-stake-account $stake_account_keypair $amount
 
 echo "Delegating stake"
+vote_account=$(solana-keygen pubkey ./keys/vote_1.json)
+echo "Using vote account: $vote_account"
+solana delegate-stake --force $stake_account_keypair $vote_account
 
-# delegate the stake to a specific validator
-solana delegate-stake $stake_account_keypair $vote_account_keypair --stake-authority $staker_keypair --force
+# Update pool again after delegation
+echo "Updating stake pool after delegation..."
+spl-stake-pool update $stake_pool --no-merge
+sleep 20
+spl-stake-pool update $stake_pool
 
 echo "Depositing stake via Interceptor"
-
-# Deposit stake into the stake-pool using the Interceptor
-../target/debug/spl-stake-pool-interceptor interceptor deposit-stake $stake_deposit_authority  $stake_account_pubkey --withdraw-authority $staker_keypair
+../target/debug/spl-stake-pool-interceptor interceptor deposit-stake \
+    $stake_deposit_authority \
+    $stake_account \
+    --staker $staker_keypair
