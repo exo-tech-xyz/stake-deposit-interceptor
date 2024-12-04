@@ -305,6 +305,11 @@ impl Processor {
             return Err(StakeDepositInterceptorError::InvalidStakePoolProgram.into());
         }
 
+        // Validate: StakePool must match the `StakePoolDepositStakeAuthority` StakePool
+        if &deposit_stake_authority.stake_pool != stake_pool_info.key {
+            return Err(StakeDepositInterceptorError::InvalidStakePool.into());
+        }
+
         let vault_token_account_before = Account::unpack(&pool_tokens_vault_info.data.borrow())?;
 
         // CPI to SPL stake-pool program to invoke DepositStake with the `StakePoolDepositStakeAuthority` as the

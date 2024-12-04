@@ -643,3 +643,31 @@ async fn test_fail_invalid_deposit_receipt() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn test_fail_invalid_stake_pool() {
+    let (
+        mut ctx,
+        _stake_pool_accounts,
+        deposit_receipt_base,
+        _deposit_receipt_pda,
+        _deposit_stake_authority_pubkey,
+        depositor,
+        mut instructions,
+    ) = setup_with_ix().await;
+    instructions[2].accounts[3] = AccountMeta::new(Pubkey::new_unique(), false);
+
+    let tx = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&depositor.pubkey()),
+        &[&depositor, &deposit_receipt_base],
+        ctx.last_blockhash,
+    );
+
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InvalidStakePool as u32),
+    )
+    .await;
+}
