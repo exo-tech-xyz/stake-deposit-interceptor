@@ -227,6 +227,10 @@ impl Processor {
             deposit_stake_authority.cool_down_seconds = cool_down_seconds.into();
         }
         if let Some(initial_fee_bps) = update_deposit_stake_authority_args.initial_fee_bps {
+            // Validate: `initial_fee_bps` cannot exceed 100%
+            if initial_fee_bps.gt(&DepositReceipt::FEE_BPS_DENOMINATOR) {
+                return Err(StakeDepositInterceptorError::InitialFeeRateMaxExceeded.into());
+            }
             deposit_stake_authority.inital_fee_bps = initial_fee_bps.into();
         }
         if let Some(fee_wallet) = update_deposit_stake_authority_args.fee_wallet {

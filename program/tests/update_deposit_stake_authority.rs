@@ -15,7 +15,11 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use stake_deposit_interceptor::{
-    error::StakeDepositInterceptorError, instruction::derive_stake_pool_deposit_stake_authority,
+    error::StakeDepositInterceptorError,
+    instruction::{
+        derive_stake_pool_deposit_stake_authority, StakeDepositInterceptorInstruction,
+        UpdateStakePoolDepositStakeAuthorityArgs,
+    },
     state::StakePoolDepositStakeAuthority,
 };
 
@@ -260,6 +264,42 @@ async fn test_fail_invalid_stake_deposit_authority_address() {
         InstructionError::Custom(
             StakeDepositInterceptorError::InvalidStakePoolDepositStakeAuthority as u32,
         ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_fail_initial_fee_bps_cannot_exceed_10000() {
+    let (
+        mut ctx,
+        _stake_pool_accounts,
+        authority,
+        _new_authority,
+        _deposit_stake_authority_pubkey,
+        mut ix,
+    ) = setup_with_ix().await;
+
+    let args = UpdateStakePoolDepositStakeAuthorityArgs {
+        fee_wallet: None,
+        initial_fee_bps: Some(10_001),
+        cool_down_seconds: None,
+    };
+    ix.data = borsh::to_vec(
+        &StakeDepositInterceptorInstruction::UpdateStakePoolDepositStakeAuthority(args),
+    )
+    .unwrap();
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer, &authority],
+        ctx.last_blockhash,
+    );
+
+    assert_transaction_err(
+        &mut ctx,
+        tx,
+        InstructionError::Custom(StakeDepositInterceptorError::InitialFeeRateMaxExceeded as u32),
     )
     .await;
 }

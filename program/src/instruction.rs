@@ -272,7 +272,7 @@ pub fn create_update_deposit_stake_authority_instruction(
         base
     );
     let args = UpdateStakePoolDepositStakeAuthorityArgs {
-        fee_wallet: fee_wallet,
+        fee_wallet,
         initial_fee_bps,
         cool_down_seconds,
     };
