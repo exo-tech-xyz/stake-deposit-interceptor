@@ -184,17 +184,7 @@ export class StakePoolDepositStakeAuthority
       authority: this.authority.toBase58(),
       vault: this.vault.toBase58(),
       stakePoolProgramId: this.stakePoolProgramId.toBase58(),
-      coolDownSeconds: (() => {
-        const x = <{ toNumber: () => number }>this.coolDownSeconds
-        if (typeof x.toNumber === 'function') {
-          try {
-            return x.toNumber()
-          } catch (_) {
-            return x
-          }
-        }
-        return x
-      })(),
+      coolDownSeconds: this.coolDownSeconds,
       initalFeeBps: this.initalFeeBps,
       feeWallet: this.feeWallet.toBase58(),
       bumpSeed: this.bumpSeed,

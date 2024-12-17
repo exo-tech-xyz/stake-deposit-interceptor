@@ -49,7 +49,7 @@ pub struct DepositStakeWithSlippageArgs {
 }
 
 /// Instructions supported by the StakeDepositInterceptor program.
-#[cfg_attr(feature = "idl", derive(ShankInstruction))]
+#[derive(ShankInstruction)]
 #[derive(ShankInstruction, Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub enum StakeDepositInterceptorInstruction {
     ///   Initializes the StakePoolDepositStakeAuthority for the given StakePool.
@@ -65,17 +65,17 @@ pub enum StakeDepositInterceptorInstruction {
     ///   8. `[]` Token program
     ///   9. `[]` Associated Token program
     ///   10. `[]` System program
-    #[cfg_attr(feature = "idl", account(0, writable, signer, name = "payer", desc = "Funding account"))]
-    #[cfg_attr(feature = "idl", account(1, writable, name = "deposit_stake_authority"))]
-    #[cfg_attr(feature = "idl", account(2, writable, name = "vault_ata", desc = "New ATA owned by the StakePoolDepositStakeAuthority"))]
-    #[cfg_attr(feature = "idl", account(3, name = "authority", desc = "Authority"))]
-    #[cfg_attr(feature = "idl", account(4, signer, name = "base", desc = "Base for PDA seed"))]
-    #[cfg_attr(feature = "idl", account(5, name = "stake_pool", desc = "StakePool"))]
-    #[cfg_attr(feature = "idl", account(6, name = "stake_pool_mint", desc = "StakePool's Pool Mint"))]
-    #[cfg_attr(feature = "idl", account(7, name = "stake_pool_program", desc = "StakePool Program ID"))]
-    #[cfg_attr(feature = "idl", account(8, name = "token_program", desc = "Token program"))]
-    #[cfg_attr(feature = "idl", account(9, name = "associated_token_program", desc = "Associated Token program"))]
-    #[cfg_attr(feature = "idl", account(10, name = "system_program", desc = "System program"))]
+    #[account(0, writable, signer, name = "payer", desc = "Funding account")]
+    #[account(1, writable, name = "deposit_stake_authority")]
+    #[account(2, writable, name = "vault_ata", desc = "New ATA owned by the StakePoolDepositStakeAuthority")]
+    #[account(3, name = "authority", desc = "Authority")]
+    #[account(4, signer, name = "base", desc = "Base for PDA seed")]
+    #[account(5, name = "stake_pool", desc = "StakePool")]
+    #[account(6, name = "stake_pool_mint", desc = "StakePool's Pool Mint")]
+    #[account(7, name = "stake_pool_program", desc = "StakePool Program ID")]
+    #[account(8, name = "token_program", desc = "Token program")]
+    #[account(9, name = "associated_token_program", desc = "Associated Token program")]
+    #[account(10, name = "system_program", desc = "System program")]
     InitStakePoolDepositStakeAuthority(InitStakePoolDepositStakeAuthorityArgs),
 
     ///   Updates the StakePoolDepositStakeAuthority for the given StakePool.
@@ -83,9 +83,9 @@ pub enum StakeDepositInterceptorInstruction {
     ///   0. `[w]` StakePoolDepositStakeAuthority PDA to be updated
     ///   1. `[s]` Authority
     ///   2. `[]` (Optional) New authority
-    #[cfg_attr(feature = "idl", account(0, writable, name = "deposit_stake_authority", desc = "PDA storing deposit authority data"))]
-    #[cfg_attr(feature = "idl", account(1, signer, name = "authority", desc = "Authority that can update the deposit authority"))]
-    #[cfg_attr(feature = "idl", account(2, optional, name = "new_authority", desc = "Optional new authority"))]
+    #[account(0, writable, name = "deposit_stake_authority", desc = "PDA storing deposit authority data")]
+    #[account(1, signer, name = "authority", desc = "Authority that can update the deposit authority")]
+    #[account(2, optional, name = "new_authority", desc = "Optional new authority")]
     UpdateStakePoolDepositStakeAuthority(UpdateStakePoolDepositStakeAuthorityArgs),
 
     ///   Deposit some stake into the pool. The "pool" token minted is held by the DepositReceipt's
@@ -112,9 +112,26 @@ pub enum StakeDepositInterceptorInstruction {
     ///   17. `[]` Pool token program id
     ///   18. `[]` Stake program id
     ///   19. `[]` System program id
-    #[cfg_attr(feature = "idl", account(0, writable, signer, name = "payer", desc = "Funding account"))]
-    #[cfg_attr(feature = "idl", account(1, name = "stake_pool_program", desc = "Stake pool program id"))]
-    #[cfg_attr(feature = "idl", account(2, writable, name = "deposit_receipt", desc = "PDA to store deposit receipt"))]
+    #[account(0, writable, signer, name = "payer", desc = "Funding account")]
+    #[account(1, name = "stake_pool_program", desc = "Stake pool program id")]
+    #[account(2, writable, name = "deposit_receipt", desc = "PDA to store deposit receipt")]
+    #[account(3, writable, name = "stake_pool", desc = "StakePool to deposit into")]
+    #[account(4, writable, name = "validator_stake_list", desc = "Validator stake list storage account")]
+    #[account(5, name = "deposit_stake_authority", desc = "StakePool stake_deposit_authority")]
+    #[account(6, signer, name = "base", desc = "Base for PDA seed")]
+    #[account(7, name = "stake_pool_withdraw_authority", desc = "Stake pool withdraw authority")]
+    #[account(8, writable, name = "stake", desc = "Stake account to join the pool")]
+    #[account(9, writable, name = "validator_stake_account", desc = "Validator stake account for the stake account to be merged with")]
+    #[account(10, writable, name = "reserve_stake_account", desc = "Reserve stake account, to withdraw rent exempt reserve")]
+    #[account(11, writable, name = "vault", desc = "Vault account to receive pool tokens")]
+    #[account(12, writable, name = "manager_fee_account", desc = "Account to receive pool fee tokens")]
+    #[account(13, writable, name = "referrer_pool_tokens_account", desc = "Account to receive a portion of pool fee tokens as referral fees")]
+    #[account(14, writable, name = "pool_mint", desc = "Pool token mint account")]
+    #[account(15, name = "clock", desc = "Sysvar clock account")]
+    #[account(16, name = "stake_history", desc = "Sysvar stake history account")]
+    #[account(17, name = "token_program", desc = "Pool token program id")]
+    #[account(18, name = "stake_program", desc = "Stake program id")]
+    #[account(19, name = "system_program", desc = "System program id")]
     DepositStake(DepositStakeArgs),
 
     ///   Deposit stake with slippage protection. The "pool" token minted is held by the DepositReceipt's
@@ -141,9 +158,26 @@ pub enum StakeDepositInterceptorInstruction {
     ///   17. `[]` Pool token program id
     ///   18. `[]` Stake program id
     ///   19. `[]` System program id
-    #[cfg_attr(feature = "idl", account(0, writable, signer, name = "payer", desc = "Funding account"))]
-    #[cfg_attr(feature = "idl", account(1, name = "stake_pool_program", desc = "Stake pool program id"))]
-    #[cfg_attr(feature = "idl", account(2, writable, name = "deposit_receipt", desc = "PDA to store deposit receipt"))]
+    #[account(0, writable, signer, name = "payer", desc = "Funding account")]
+    #[account(1, name = "stake_pool_program", desc = "Stake pool program id")]
+    #[account(2, writable, name = "deposit_receipt", desc = "PDA to store deposit receipt")]
+    #[account(3, writable, name = "stake_pool", desc = "StakePool to deposit into")]
+    #[account(4, writable, name = "validator_stake_list", desc = "Validator stake list storage account")]
+    #[account(5, name = "deposit_stake_authority", desc = "StakePool stake_deposit_authority")]
+    #[account(6, signer, name = "base", desc = "Base for PDA seed")]
+    #[account(7, name = "stake_pool_withdraw_authority", desc = "Stake pool withdraw authority")]
+    #[account(8, writable, name = "stake", desc = "Stake account to join the pool")]
+    #[account(9, writable, name = "validator_stake_account", desc = "Validator stake account for the stake account to be merged with")]
+    #[account(10, writable, name = "reserve_stake_account", desc = "Reserve stake account, to withdraw rent exempt reserve")]
+    #[account(11, writable, name = "vault", desc = "Vault account to receive pool tokens")]
+    #[account(12, writable, name = "manager_fee_account", desc = "Account to receive pool fee tokens")]
+    #[account(13, writable, name = "referrer_pool_tokens_account", desc = "Account to receive a portion of pool fee tokens as referral fees")]
+    #[account(14, writable, name = "pool_mint", desc = "Pool token mint account")]
+    #[account(15, name = "clock", desc = "Sysvar clock account")]
+    #[account(16, name = "stake_history", desc = "Sysvar stake history account")]
+    #[account(17, name = "token_program", desc = "Pool token program id")]
+    #[account(18, name = "stake_program", desc = "Stake program id")]
+    #[account(19, name = "system_program", desc = "System program id")]
     DepositStakeWithSlippage(DepositStakeWithSlippageArgs),
 
     ///   Update the `owner` of the DepositReceipt so the new owner
@@ -152,9 +186,9 @@ pub enum StakeDepositInterceptorInstruction {
     ///   0. `[w]` DepositReceipt PDA
     ///   1. `[s]` current owner of the DepositReceipt
     ///   2. `[]` new owner for the DepositReceipt
-    #[cfg_attr(feature = "idl", account(0, writable, name = "deposit_receipt", desc = "PDA storing deposit receipt"))]
-    #[cfg_attr(feature = "idl", account(1, signer, name = "current_owner", desc = "Current owner of the receipt"))]
-    #[cfg_attr(feature = "idl", account(2, name = "new_owner", desc = "New owner for the receipt"))]
+    #[account(0, writable, name = "deposit_receipt", desc = "PDA storing deposit receipt")]
+    #[account(1, signer, name = "current_owner", desc = "Current owner of the receipt")]
+    #[account(2, name = "new_owner", desc = "New owner for the receipt")]
     ChangeDepositReceiptOwner,
 
     ///   Claim the "pool" tokens held by the program from a former DepositStake
@@ -170,15 +204,15 @@ pub enum StakeDepositInterceptorInstruction {
     ///   6. `[]` Pool token mint
     ///   7. `[]` Token program id
     ///   8. `[]` System program id
-    #[cfg_attr(feature = "idl", account(0, writable, name = "deposit_receipt", desc = "PDA storing deposit receipt"))]
-    #[cfg_attr(feature = "idl", account(1, writable, signer, name = "owner", desc = "Owner of the receipt"))]
-    #[cfg_attr(feature = "idl", account(2, writable, name = "vault", desc = "Vault token account"))]
-    #[cfg_attr(feature = "idl", account(3, writable, name = "destination", desc = "Destination token account"))]
-    #[cfg_attr(feature = "idl", account(4, writable, name = "fee_wallet", desc = "Fee wallet token account"))]
-    #[cfg_attr(feature = "idl", account(5, name = "deposit_authority", desc = "Deposit authority PDA"))]
-    #[cfg_attr(feature = "idl", account(6, name = "pool_mint", desc = "Pool token mint"))]
-    #[cfg_attr(feature = "idl", account(7, name = "token_program", desc = "Token program"))]
-    #[cfg_attr(feature = "idl", account(8, name = "system_program", desc = "System program"))]
+    #[account(0, writable, name = "deposit_receipt", desc = "PDA storing deposit receipt")]
+    #[account(1, writable, signer, name = "owner", desc = "Owner of the receipt")]
+    #[account(2, writable, name = "vault", desc = "Vault token account")]
+    #[account(3, writable, name = "destination", desc = "Destination token account")]
+    #[account(4, writable, name = "fee_wallet", desc = "Fee wallet token account")]
+    #[account(5, name = "deposit_authority", desc = "Deposit authority PDA")]
+    #[account(6, name = "pool_mint", desc = "Pool token mint")]
+    #[account(7, name = "token_program", desc = "Token program")]
+    #[account(8, name = "system_program", desc = "System program")]
     ClaimPoolTokens,
 }
 

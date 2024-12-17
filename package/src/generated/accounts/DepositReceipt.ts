@@ -170,39 +170,9 @@ export class DepositReceipt implements DepositReceiptArgs {
       stakePool: this.stakePool.toBase58(),
       stakePoolDepositStakeAuthority:
         this.stakePoolDepositStakeAuthority.toBase58(),
-      depositTime: (() => {
-        const x = <{ toNumber: () => number }>this.depositTime
-        if (typeof x.toNumber === 'function') {
-          try {
-            return x.toNumber()
-          } catch (_) {
-            return x
-          }
-        }
-        return x
-      })(),
-      lstAmount: (() => {
-        const x = <{ toNumber: () => number }>this.lstAmount
-        if (typeof x.toNumber === 'function') {
-          try {
-            return x.toNumber()
-          } catch (_) {
-            return x
-          }
-        }
-        return x
-      })(),
-      coolDownSeconds: (() => {
-        const x = <{ toNumber: () => number }>this.coolDownSeconds
-        if (typeof x.toNumber === 'function') {
-          try {
-            return x.toNumber()
-          } catch (_) {
-            return x
-          }
-        }
-        return x
-      })(),
+      depositTime: this.depositTime,
+      lstAmount: this.lstAmount,
+      coolDownSeconds: this.coolDownSeconds,
       initialFeeBps: this.initialFeeBps,
       bumpSeed: this.bumpSeed,
       reserved: this.reserved,

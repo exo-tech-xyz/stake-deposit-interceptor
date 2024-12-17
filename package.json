@@ -1,7 +1,6 @@
 {
   "scripts": {
-    "generate": "shank generate",
-    "generate:sdk": "./node_modules/@metaplex-foundation/solita/dist/src/cli/solita.js"
+    "generate": "solita"
   },
   "name": "stake-deposit-interceptor",
   "version": "1.0.0",

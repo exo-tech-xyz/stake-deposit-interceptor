@@ -4,7 +4,7 @@ A Solana program intended to become the `stake_deposit_authority` of a StakePool
 
 More information in the Jito governance forum [here](https://forum.jito.network/t/jip-9-adopt-interceptor-liquidity-defense/444).
 
-## State
+## Program State
 
 ```rust
 // PDA derived from stake_pool pubkey
@@ -83,3 +83,14 @@ pub struct DepositReceipt {
 ### UpdateOwner
 
 *Let the owner of the DepositReceipt update who can claim the tokens.*
+
+## IDL and SDK generation
+This program uses Shank for IDL generation and Solita for SDK generation. 
+
+Install Shank
+`cargo install shank-cli`
+Install Solita
+`yarn global add @metaplex-foundation/solita`
+
+Run Solita
+`solita`

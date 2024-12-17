@@ -3,7 +3,6 @@ use bytemuck::{Pod, Zeroable};
 use jito_bytemuck::{AccountDeserialize, Discriminator};
 use solana_program::pubkey::Pubkey;
 use spl_pod::primitives::{PodU32, PodU64};
-use shank::ShankAccount;
 /// Discriminators for accounts
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StakeDepositInterceptorDiscriminators {
@@ -12,7 +11,7 @@ pub enum StakeDepositInterceptorDiscriminators {
 }
 
 /// Variables to construct linearly decaying fees over some period of time.
-#[cfg_attr(feature = "idl", derive(ShankAccount))]
+#[derive(shank::ShankAccount)]
 #[repr(C)]
 #[derive(Clone, Copy, AccountDeserialize, Debug, PartialEq, Pod, Zeroable)]
 pub struct StakePoolDepositStakeAuthority {
@@ -52,7 +51,7 @@ impl StakePoolDepositStakeAuthority {
 }
 
 /// Representation of some amount of claimable LST
-#[cfg_attr(feature = "idl", derive(ShankAccount))]
+#[derive(shank::ShankAccount)]
 #[repr(C)]
 #[derive(Clone, Copy, AccountDeserialize, BorshSerialize, Debug, PartialEq, Pod, Zeroable)]
 pub struct DepositReceipt {

@@ -45,7 +45,7 @@ export const UpdateStakePoolDepositStakeAuthorityStruct =
  *
  * @property [_writable_] depositStakeAuthority
  * @property [**signer**] authority
- * @property [**signer**] newAuthority (optional)
+ * @property [] newAuthority (optional)
  * @category Instructions
  * @category UpdateStakePoolDepositStakeAuthority
  * @category generated
@@ -95,7 +95,7 @@ export function createUpdateStakePoolDepositStakeAuthorityInstruction(
     {
       pubkey: accounts.newAuthority ?? programId,
       isWritable: false,
-      isSigner: accounts.newAuthority != null,
+      isSigner: false,
     },
   ]
 
