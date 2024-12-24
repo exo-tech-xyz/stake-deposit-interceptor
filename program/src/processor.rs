@@ -456,6 +456,16 @@ impl Processor {
         // Validate: program owns `DepositReceipt`
         check_account_owner(deposit_receipt_info, program_id)?;
 
+        // Validate: no self transfer
+        if vault_token_account_info.key == destination_token_account_info.key {
+            return Err(StakeDepositInterceptorError::InvalidDestinationTokenAccount.into());
+        }
+        
+        // Validate: no self transfer
+        if vault_token_account_info.key == fee_token_account_info.key {
+            return Err(StakeDepositInterceptorError::InvalidFeeTokenAccount.into());
+        }
+
         {
             let clock = Clock::get()?;
 

@@ -39,7 +39,7 @@ pub enum StakeDepositInterceptorError {
     #[error("Fee token account is invalid")]
     InvalidFeeTokenAccount,
     /// 12 : Invalid destination token account
-    #[error("Fee token account is invalid")]
+    #[error("Destination token account is invalid")]
     InvalidDestinationTokenAccount,
     /// 13 : Cannot claim on behalf of owner until cool down has ended
     #[error("Only owner can claim during cool down period")]
