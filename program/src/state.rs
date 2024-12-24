@@ -90,11 +90,20 @@ impl DepositReceipt {
     /// are required to be sent to the fee_wallet's token account.
     pub fn calculate_fee_amount(&self, current_timestamp: i64) -> u64 {
         let cool_down_seconds = u64::from(self.cool_down_seconds);
-        let end_cool_down_time = u64::from(self.deposit_time)
+        let deposit_time = u64::from(self.deposit_time);
+        let timestamp = current_timestamp.unsigned_abs();
+
+        // Panic when `timestamp` is less than `deposit_time`.
+        // This should never happen, but is here in case something
+        // goes terribly wrong with the Clock.
+        timestamp
+            .checked_sub(deposit_time)
+            .expect("Invalid timestamp");
+
+        let end_cool_down_time = deposit_time
             .checked_add(cool_down_seconds)
             .expect("overflow");
-        let cool_down_time_left =
-            end_cool_down_time.saturating_sub(current_timestamp.unsigned_abs());
+        let cool_down_time_left = end_cool_down_time.saturating_sub(timestamp);
         if cool_down_time_left == 0 {
             return 0;
         }

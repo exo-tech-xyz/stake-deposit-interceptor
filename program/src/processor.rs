@@ -460,7 +460,7 @@ impl Processor {
         if vault_token_account_info.key == destination_token_account_info.key {
             return Err(StakeDepositInterceptorError::InvalidDestinationTokenAccount.into());
         }
-        
+
         // Validate: no self transfer
         if vault_token_account_info.key == fee_token_account_info.key {
             return Err(StakeDepositInterceptorError::InvalidFeeTokenAccount.into());
@@ -555,7 +555,9 @@ impl Processor {
                 &deposit_stake_authority,
             )?;
 
-            let amount = u64::from(deposit_receipt.lst_amount).saturating_sub(fee_amount);
+            let amount = u64::from(deposit_receipt.lst_amount)
+                .checked_sub(fee_amount)
+                .expect("overflow");
             // Transfer the rest of the tokens to the destination token account
             transfer_tokens_cpi(
                 token_program_info.clone(),
